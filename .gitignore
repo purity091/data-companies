@@ -1,0 +1,31 @@
+node_modules/
+.next/
+out/
+build/
+dist/
+coverage/
+.turbo/
+.vercel/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# Local secrets and credentials
+*.pem
+*.key
+*.crt
+!.env.example
+
+# Local tooling and editor files
+.vscode/
+.idea/
+*.swp
+
+# Local Supabase CLI state
+supabase/.temp/
+
+# Runtime and test artifacts
+*.tsbuildinfo
+playwright-report/
+test-results/

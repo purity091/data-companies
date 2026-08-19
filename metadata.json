@@ -1,0 +1,6 @@
+{
+  "name": "Company Data Editor and Quality Control Tool",
+  "description": "أداة ذكية لمدخلي البيانات لرفع وتعديل وتصدير ملفات الشركات البرمجية والتحقق التلقائي من دقة وجودة البيانات المدخلة في الأقسام المختلفة.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

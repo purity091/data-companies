@@ -1,0 +1,4 @@
+import { Lock, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+export function ProLockOverlay({ title, subtitle, onUnlock }: { title: string; subtitle: string; onUnlock: () => void }) { return <div className="absolute inset-0 bg-card/85 backdrop-blur-xs flex flex-col items-center justify-center p-6 text-center z-20 space-y-3"><div className="p-3 rounded-full bg-primary/10 text-primary border border-primary/20"><Lock className="h-6 w-6" /></div><h4 className="text-sm font-bold text-foreground">{title}</h4><p className="text-xs text-muted-foreground max-w-md leading-relaxed">{subtitle}</p><Button onClick={onUnlock} className="px-4 py-2 bg-primary text-white font-bold text-xs rounded-lg gap-2"><Sparkles className="h-3.5 w-3.5 text-amber-300" />فتح التقرير الاحترافي الكامل</Button></div>; }

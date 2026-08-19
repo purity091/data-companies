@@ -1,0 +1,339 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Company {
+  id           BigInt  @id @default(autoincrement()) @db.BigInt
+  slug         String  @unique @db.VarChar(180)
+  name         String  @db.VarChar(255)
+  legalName    String? @db.VarChar(255)
+  description  String? @db.Text
+  websiteUrl   String? @db.VarChar(2048)
+  logoUrl      String? @db.VarChar(2048)
+  foundedYear  Int?    @db.SmallInt
+  trustmrrSlug String? @unique @db.VarChar(180)
+
+  countryId  BigInt? @db.BigInt
+  industryId BigInt? @db.BigInt
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  country                   Country?                   @relation(fields: [countryId], references: [id], onDelete: SetNull)
+  industry                  Industry?                  @relation(fields: [industryId], references: [id], onDelete: SetNull)
+  people                    Person[]
+  investors                 CompanyInvestor[]          @relation("CompanyInvestments")
+  markets                   CompanyMarket[]
+  trustmrr                  TrustMrrProfile?
+  trustmrrTechStack         TrustMrrTechStack[]
+  trustmrrMarketingChannels TrustMrrMarketingChannel[]
+  trustmrrCofounders        TrustMrrCofounder[]
+  llmEnrichment             CompanyLlmEnrichment?
+  products                  CompanyProduct[]
+  competitors               CompanyCompetitor[]
+  relatedParties            CompanyRelatedParty[]
+  sources                   CompanySource[]
+
+  @@index([name])
+  @@index([createdAt, id])
+  @@index([countryId])
+  @@index([industryId])
+  @@index([countryId, createdAt, id])
+  @@index([industryId, createdAt, id])
+  @@map("companies")
+}
+
+model Person {
+  id          BigInt  @id @default(autoincrement()) @db.BigInt
+  fullName    String  @db.VarChar(255)
+  jobTitle    String? @db.VarChar(255)
+  linkedinUrl String? @db.VarChar(2048)
+  companyId   BigInt? @db.BigInt
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([fullName])
+  @@map("people")
+}
+
+model Investor {
+  id         BigInt  @id @default(autoincrement()) @db.BigInt
+  slug       String  @unique @db.VarChar(180)
+  name       String  @db.VarChar(255)
+  websiteUrl String? @db.VarChar(2048)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  investments CompanyInvestor[] @relation("InvestorPortfolio")
+
+  @@index([name])
+  @@map("investors")
+}
+
+model Country {
+  id        BigInt    @id @default(autoincrement()) @db.BigInt
+  code      String    @unique @db.Char(2)
+  name      String    @unique @db.VarChar(150)
+  companies Company[]
+
+  @@map("countries")
+}
+
+model Industry {
+  id        BigInt    @id @default(autoincrement()) @db.BigInt
+  slug      String    @unique @db.VarChar(180)
+  name      String    @unique @db.VarChar(150)
+  companies Company[]
+
+  @@map("industries")
+}
+
+model Market {
+  id        BigInt          @id @default(autoincrement()) @db.BigInt
+  slug      String          @unique @db.VarChar(180)
+  name      String          @unique @db.VarChar(150)
+  companies CompanyMarket[]
+
+  @@map("markets")
+}
+
+model CompanyMarket {
+  companyId BigInt @db.BigInt
+  marketId  BigInt @db.BigInt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  market  Market  @relation(fields: [marketId], references: [id], onDelete: Cascade)
+
+  @@id([companyId, marketId])
+  @@index([marketId])
+  @@map("company_markets")
+}
+
+model CompanyInvestor {
+  companyId  BigInt    @db.BigInt
+  investorId BigInt    @db.BigInt
+  investedAt DateTime? @db.Timestamptz(3)
+
+  company  Company  @relation("CompanyInvestments", fields: [companyId], references: [id], onDelete: Cascade)
+  investor Investor @relation("InvestorPortfolio", fields: [investorId], references: [id], onDelete: Cascade)
+
+  @@id([companyId, investorId])
+  @@index([investorId])
+  @@map("company_investors")
+}
+
+model TrustMrrProfile {
+  id                                BigInt    @id @default(autoincrement()) @db.BigInt
+  companyId                         BigInt    @unique @db.BigInt
+  paymentProvider                   String?   @db.VarChar(80)
+  targetAudience                    String?   @db.VarChar(20)
+  teamSize                          String?   @db.VarChar(20)
+  fundingStatus                     String?   @db.VarChar(30)
+  revenueLast30DaysCents            BigInt?   @db.BigInt
+  revenueMrrCents                   BigInt?   @db.BigInt
+  revenueTotalCents                 BigInt?   @db.BigInt
+  customers                         Int?
+  activeSubscriptions               Int?
+  askingPriceCents                  BigInt?   @db.BigInt
+  profitMarginLast30Days            Decimal?  @db.Decimal(10, 4)
+  growth30d                         Decimal?  @db.Decimal(14, 6)
+  growthMrr30d                      Decimal?  @db.Decimal(14, 6)
+  multiple                          Decimal?  @db.Decimal(14, 6)
+  rank                              Int?
+  visitorsLast30Days                Int?
+  googleSearchImpressionsLast30Days BigInt?   @db.BigInt
+  revenuePerVisitor                 Decimal?  @db.Decimal(14, 6)
+  onSale                            Boolean   @default(false)
+  firstListedForSaleAt              DateTime? @db.Timestamptz(3)
+  xHandle                           String?   @db.VarChar(100)
+  trustmrrUrl                       String?   @db.VarChar(2048)
+  markdownUrl                       String?   @db.VarChar(2048)
+  previousAskingPriceCents          BigInt?   @db.BigInt
+  listingTier                       String?   @db.VarChar(40)
+  listingTierBgColor                String?   @db.VarChar(30)
+  listingTierBgColorDark            String?   @db.VarChar(30)
+  brandingPrimaryColor              String?   @db.VarChar(30)
+  brandingSecondaryColor            String?   @db.VarChar(30)
+  pageviewCount                     Int?
+  offerCount                        Int?
+  stealthMode                       Boolean?
+  isMobileApp                       Boolean?
+  xFounderName                      String?   @db.VarChar(255)
+  xProfilePicture                   String?   @db.VarChar(2048)
+  xFollowerCount                    BigInt?   @db.BigInt
+  isMerchantOfRecord                Boolean?
+  domainRating                      Decimal?  @db.Decimal(8, 3)
+  founderMessage                    String?   @db.Text
+  insightValueProposition           String?   @db.Text
+  insightProblemSolved              String?   @db.Text
+  insightPricingModel               String?   @db.Text
+  insightTargetPersona              String?   @db.Text
+  insightBusinessType               String?   @db.VarChar(30)
+  insightTeamSize                   String?   @db.VarChar(20)
+  insightFundingStatus              String?   @db.VarChar(30)
+  insightEstimatedUserCount         Int?
+  sourceUpdatedAt                   DateTime? @db.Timestamptz(3)
+  importedAt                        DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt                         DateTime  @updatedAt @db.Timestamptz(3)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([onSale])
+  @@index([revenueLast30DaysCents])
+  @@index([askingPriceCents])
+  @@map("trustmrr_profiles")
+}
+
+model TrustMrrTechStack {
+  companyId BigInt  @db.BigInt
+  slug      String  @db.VarChar(180)
+  category  String? @db.VarChar(80)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@id([companyId, slug])
+  @@index([slug])
+  @@map("trustmrr_tech_stack")
+}
+
+model TrustMrrMarketingChannel {
+  companyId BigInt  @db.BigInt
+  slug      String  @db.VarChar(180)
+  category  String? @db.VarChar(80)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@id([companyId, slug])
+  @@index([slug])
+  @@map("trustmrr_marketing_channels")
+}
+
+model TrustMrrCofounder {
+  id        BigInt  @id @default(autoincrement()) @db.BigInt
+  companyId BigInt  @db.BigInt
+  xHandle   String  @db.VarChar(100)
+  xName     String? @db.VarChar(255)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, xHandle])
+  @@index([companyId])
+  @@map("trustmrr_cofounders")
+}
+
+model CompanyLlmEnrichment {
+  id                   BigInt    @id @default(autoincrement()) @db.BigInt
+  companyId            BigInt    @unique @db.BigInt
+  companyType          String?   @db.VarChar(100)
+  headquarters         String?   @db.VarChar(255)
+  employeeCount        Int?
+  techStack            String?   @db.Text
+  marketingChannels    String?   @db.Text
+  businessModel        String?   @db.Text
+  valueProposition     String?   @db.Text
+  targetCustomers      String?   @db.Text
+  pricingModel         String?   @db.Text
+  relationshipsSummary String?   @db.Text
+  fundingStage         String?   @db.VarChar(100)
+  totalFundingUsd      Decimal?  @db.Decimal(20, 2)
+  lastFundingDate      DateTime? @db.Date
+  revenueRange         String?   @db.VarChar(100)
+  businessStatus       String?   @db.VarChar(100)
+  strategicDomain      String?   @db.VarChar(255)
+  reachScope           String?   @db.Text
+  audienceSegments     String?   @db.Text
+  strategicAnalysis    String?   @db.Text
+  growthSignals        String?   @db.Text
+  expansionPlan        String?   @db.Text
+  swotStrengths        String?   @db.Text
+  swotWeaknesses       String?   @db.Text
+  swotOpportunities    String?   @db.Text
+  swotThreats          String?   @db.Text
+  evidenceSummary      String?   @db.Text
+  confidence           Decimal?  @db.Decimal(4, 3)
+  dataGaps             String?   @db.Text
+  risks                String?   @db.Text
+  lastVerifiedAt       DateTime? @db.Date
+  promptVersion        String    @default("llm-4-step-v1") @db.VarChar(40)
+  createdAt            DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime  @updatedAt @db.Timestamptz(3)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("company_llm_enrichment")
+}
+
+model CompanyProduct {
+  id          BigInt  @id @default(autoincrement()) @db.BigInt
+  companyId   BigInt  @db.BigInt
+  name        String  @db.VarChar(255)
+  description String? @db.Text
+  url         String? @db.VarChar(2048)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@map("company_products")
+}
+
+model CompanyCompetitor {
+  id           BigInt  @id @default(autoincrement()) @db.BigInt
+  companyId    BigInt  @db.BigInt
+  name         String  @db.VarChar(255)
+  websiteUrl   String? @db.VarChar(2048)
+  relationship String? @db.VarChar(80)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@map("company_competitors")
+}
+
+model CompanyRelatedParty {
+  id           BigInt   @id @default(autoincrement()) @db.BigInt
+  companyId    BigInt   @db.BigInt
+  name         String   @db.VarChar(255)
+  partyType    String?  @db.VarChar(80)
+  relationship String?  @db.VarChar(120)
+  websiteUrl   String?  @db.VarChar(2048)
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @db.Timestamptz(3)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@map("company_related_parties")
+}
+
+model CompanySource {
+  id         BigInt    @id @default(autoincrement()) @db.BigInt
+  companyId  BigInt    @db.BigInt
+  title      String    @db.VarChar(255)
+  url        String    @db.VarChar(2048)
+  publisher  String?   @db.VarChar(255)
+  sourceType String    @default("other") @db.VarChar(40)
+  accessedAt DateTime? @db.Timestamptz(3)
+  evidence   String?   @db.Text
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime  @updatedAt @db.Timestamptz(3)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, url])
+  @@index([companyId])
+  @@map("company_sources")
+}

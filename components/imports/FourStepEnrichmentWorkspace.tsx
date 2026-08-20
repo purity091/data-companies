@@ -18,16 +18,22 @@ import {
   ShieldCheck,
   Users,
   WalletCards,
+  X,
 } from "lucide-react";
 import { enrichmentPromptDefinitions, buildEnrichmentPrompt } from "@/modules/imports/llm-enrichment.prompts";
 import type { LlmEnrichmentBundle } from "@/modules/imports/llm-enrichment.validation";
-import { CompanyProfileView, type CompanyProfileData } from "@/components/companies/CompanyProfileView";
 import { Button } from "@/components/ui/button";
 
 type PartKey = "identity" | "business" | "peopleFinance" | "evidence";
 type ReviewKey = "summary" | PartKey;
 type Parts = Record<PartKey, string>;
 type Issue = { severity: "error" | "warning"; field: string; message: string };
+type EnrichmentPreviewResponse = {
+  data: PreviewCompany | null;
+  enrichment: LlmEnrichmentBundle | null;
+  issues: Issue[];
+  canCommit: boolean;
+};
 
 type PreviewSource = {
   title?: string | null;
@@ -140,22 +146,34 @@ export function FourStepEnrichmentWorkspace() {
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [processedParts, setProcessedParts] = useState<PartKey[]>([]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setCompanyId(params.get("companyId"));
+    const requestedPart = params.get("part") as PartKey | null;
+    if (requestedPart && partKeys.includes(requestedPart)) setActive(requestedPart);
   }, []);
 
   const activeDefinition = useMemo(() => enrichmentPromptDefinitions.find((item) => item.id === active), [active]);
+  const activePrompt = useMemo(
+    () => activeDefinition ? buildEnrichmentPrompt(activeDefinition, companyHint) : "",
+    [activeDefinition, companyHint],
+  );
   const enteredCount = Object.values(parts).filter((value) => value.trim()).length;
 
   async function copyPrompt() {
     if (!activeDefinition) return;
-    await navigator.clipboard.writeText(buildEnrichmentPrompt(activeDefinition, companyHint));
+    await navigator.clipboard.writeText(activePrompt);
     setStatus("تم نسخ التعليمة. ألصقها في ChatGPT أو Perplexity ثم أعد JSON هنا.");
   }
 
-  async function previewBundle() {
+  async function previewBundle(scope?: PartKey) {
+    if (scope && !parts[scope].trim()) {
+      setError("ألصق JSON للقسم المحدد أولًا ثم اضغط إدخال القسم.");
+      setStatus(null);
+      return;
+    }
     setLoading(true);
     setError(null);
     setStatus(null);
@@ -166,13 +184,20 @@ export function FourStepEnrichmentWorkspace() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ parts, companyId: companyId || undefined }),
       });
-      const body = await response.json();
+      const body = await response.json() as EnrichmentPreviewResponse & { error?: string; details?: string };
       if (!response.ok) throw new Error([body.error, body.details].filter(Boolean).join(": ") || "تعذر التحقق من التعليمات الأربع");
       setPreview(body.data as PreviewCompany);
       setEnrichment(body.enrichment as LlmEnrichmentBundle | null);
-      setIssues(body.issues || []);
+      setIssues(scope
+        ? (body.issues || []).filter((issue) => issue.field === scope || issue.field.startsWith(`${scope}.`))
+        : body.issues || []);
       setReviewTab("summary");
       setStatus(body.canCommit ? "اكتملت المراجعة. البيانات أدناه هي التي ستدخل إلى قاعدة البيانات." : "راجع الأخطاء المشار إليها قبل الحفظ.");
+      if (scope && body.enrichment?.[scope]) {
+        setParts((current) => ({ ...current, [scope]: JSON.stringify(body.enrichment?.[scope], null, 2) }));
+        setProcessedParts((current) => current.includes(scope) ? current : [...current, scope]);
+        setStatus(`تم إدخال القسم: ${activeDefinition?.title ?? scope}. يمكنك الانتقال للقسم التالي.`);
+      }
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "تعذر التحقق من JSON");
     } finally {
@@ -198,6 +223,7 @@ export function FourStepEnrichmentWorkspace() {
       setEnrichment(null);
       setIssues([]);
       setParts(emptyParts);
+      setProcessedParts([]);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "تعذر حفظ البيانات");
     } finally {
@@ -247,7 +273,7 @@ export function FourStepEnrichmentWorkspace() {
               const filled = Boolean(parts[definition.id].trim());
               return <button key={definition.id} type="button" onClick={() => setActive(definition.id)} className={`flex w-full items-start gap-3 rounded-2xl p-4 text-right transition ${active === definition.id ? "bg-slate-950 text-white" : "text-slate-700 hover:bg-slate-100"}`}>
                 <span className={`mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-black ${active === definition.id ? "bg-white/15 text-white" : filled ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>{filled ? <Check className="size-4" /> : index + 1}</span>
-                <span><p className="font-black">{definition.title}</p><p className={`mt-1 text-xs leading-5 ${active === definition.id ? "text-slate-300" : "text-slate-500"}`}>{definition.purpose}</p></span>
+                <span><p className="font-black">{definition.title}</p><p className={`mt-1 text-xs leading-5 ${active === definition.id ? "text-slate-300" : "text-slate-500"}`}>{processedParts.includes(definition.id) ? "تم إدخال هذا القسم بنجاح." : definition.purpose}</p></span>
               </button>;
             })}
           </aside>
@@ -258,9 +284,19 @@ export function FourStepEnrichmentWorkspace() {
                 <div><p className="text-xs font-black uppercase tracking-widest text-sky-600">{activeDefinition.instructionId}</p><h2 className="mt-1 text-xl font-black text-slate-950">{activeDefinition.title}</h2><p className="mt-2 text-sm text-slate-500">الحقول: {activeDefinition.fields.join(", ")}</p></div>
                 <Button type="button" variant="secondary" onClick={() => void copyPrompt()}>نسخ التعليمة</Button>
               </div>
-              <textarea value={parts[active]} onChange={(event) => setParts((current) => ({ ...current, [active]: event.target.value }))} className="mt-5 min-h-[380px] w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 font-mono text-sm leading-7 text-slate-800 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100" placeholder="ألصق JSON الناتج هنا..." spellCheck={false} />
+              <details open className="mt-5 rounded-2xl border border-sky-200 bg-sky-50 p-4">
+                <summary className="cursor-pointer text-sm font-black text-sky-950">التعليمة الجاهزة لهذا القسم</summary>
+                <p className="mt-2 text-xs leading-6 text-sky-800">انسخ التعليمة، أرسلها للنموذج، ثم ألصق JSON هنا واضغط إدخال القسم.</p>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <Button type="button" onClick={() => void copyPrompt()} className="bg-sky-700 text-white hover:bg-sky-800"><Copy className="size-4" /> نسخ تعليمة الذكاء الاصطناعي</Button>
+                  <span className="text-xs font-bold text-sky-700">بعد النسخ ألصقها في ChatGPT أو أي LLM.</span>
+                </div>
+                <textarea readOnly value={activePrompt} aria-label="تعليمة القسم" className="mt-3 min-h-[260px] w-full rounded-xl border border-sky-200 bg-white p-3 font-mono text-xs leading-6 text-slate-700 outline-none" />
+              </details>
+              <textarea value={parts[active]} onChange={(event) => { setParts((current) => ({ ...current, [active]: event.target.value })); setProcessedParts((current) => current.filter((part) => part !== active)); }} className="mt-5 min-h-[380px] w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 font-mono text-sm leading-7 text-slate-800 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100" placeholder="ألصق JSON الناتج هنا..." spellCheck={false} />
               <div className="mt-4 flex flex-wrap gap-2">
                 <Button type="button" variant="outline" onClick={() => setActive(enrichmentPromptDefinitions[(enrichmentPromptDefinitions.findIndex((item) => item.id === active) + 1) % enrichmentPromptDefinitions.length].id)}>المرحلة التالية <ChevronLeft className="size-4" /></Button>
+                <Button type="button" variant="secondary" onClick={() => void previewBundle(active)} disabled={loading}><FileCheck2 className="size-4" /> إدخال القسم</Button>
                 <Button type="button" onClick={() => void previewBundle()} disabled={loading}><RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} /> مراجعة البيانات</Button>
               </div>
             </>}
@@ -270,67 +306,68 @@ export function FourStepEnrichmentWorkspace() {
         {(error || status) && <div className={`mt-6 flex items-start gap-3 rounded-2xl border p-4 text-sm leading-7 ${error ? "border-red-200 bg-red-50 text-red-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>{error ? <AlertTriangle className="mt-1 size-5 shrink-0" /> : <CheckCircle2 className="mt-1 size-5 shrink-0" />}<span>{error || status}</span></div>}
         {issues.length > 0 && <IssueList issues={issues} parts={parts} active={active} />}
 
-        {preview && enrichment && <CompanyPreviewBeforeCommit preview={preview} enrichment={enrichment} companyId={companyId} issues={issues} loading={loading} onCommit={() => void commitBundle()} />}
+        {preview && enrichment && <CompanyPreviewBeforeCommit preview={preview} enrichment={enrichment} issues={issues} loading={loading} onCommit={() => void commitBundle()} />}
       </div>
     </main>
   );
 }
 
-function buildProfilePreview(preview: PreviewCompany, enrichment: LlmEnrichmentBundle, companyId: string | null): CompanyProfileData {
-  const identity = enrichment.identity;
-  const business = enrichment.business;
-  const finance = enrichment.peopleFinance;
-  const evidence = enrichment.evidence;
-  const companyKey = identity?.companyKey || business?.companyKey || finance?.companyKey || evidence?.companyKey || preview.name;
-  const slug = companyId || companyKey.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "preview";
-  const markets = business?.markets ?? preview.markets;
+function CompanyPreviewBeforeCommit({ preview, enrichment, issues, loading, onCommit }: { preview: PreviewCompany; enrichment: LlmEnrichmentBundle; issues: Issue[]; loading: boolean; onCommit: () => void }) {
+  const [modalOpen, setModalOpen] = useState(false);
+  const [reviewTab, setReviewTab] = useState<ReviewKey>("summary");
+  const hasErrors = issues.some((issue) => issue.severity === "error");
+  const sourceCount = uniqueSources([
+    ...preview.sources,
+    ...(enrichment.identity?.sources ?? []).map(toPreviewSource),
+    ...(enrichment.business?.sources ?? []).map(toPreviewSource),
+    ...(enrichment.peopleFinance?.sources ?? []).map(toPreviewSource),
+    ...(enrichment.evidence?.sources ?? []).map(toPreviewSource),
+  ].filter((source): source is PreviewSource => Boolean(source))).length;
 
-  return {
-    id: companyId || "preview",
-    slug,
-    name: preview.name,
-    legalName: preview.legalName ?? null,
-    description: preview.description ?? null,
-    websiteUrl: preview.websiteUrl ?? null,
-    foundedYear: preview.foundedYear ?? null,
-    country: preview.countryName ? { name: preview.countryName, code: "" } : null,
-    industry: preview.industryName ? { name: preview.industryName } : null,
-    people: preview.people.map((person, index) => ({ id: `preview-person-${index}`, fullName: person.fullName, jobTitle: person.jobTitle ?? null })),
-    markets: markets.map((name, index) => ({ companyId: "preview", marketId: `preview-market-${index}`, market: { id: `preview-market-${index}`, slug: name.toLowerCase().replace(/[^a-z0-9]+/g, "-"), name } })),
-    investors: preview.investors.map((item) => ({ investor: { name: item.name, websiteUrl: item.websiteUrl ?? null } })),
-    llmEnrichment: {
-      companyType: identity?.companyType ?? null,
-      employeeCount: identity?.employeeCount ?? null,
-      techStack: identity?.techStack?.join("\n") ?? null,
-      marketingChannels: identity?.marketingChannels?.join("\n") ?? null,
-      businessModel: business?.businessModel ?? null,
-      relationshipsSummary: business?.relationshipsSummary ?? null,
-      strategicDomain: evidence?.strategicDomain ?? null,
-      reachScope: evidence?.reachScope ?? null,
-      audienceSegments: evidence?.audienceSegments?.join("\n") ?? null,
-      strategicAnalysis: evidence?.strategicAnalysis ?? null,
-      growthSignals: evidence?.growthSignals ?? null,
-      expansionPlan: evidence?.expansionPlan ?? null,
-      swotStrengths: evidence?.swot?.strengths?.join("\n") ?? null,
-      swotWeaknesses: evidence?.swot?.weaknesses?.join("\n") ?? null,
-      swotOpportunities: evidence?.swot?.opportunities?.join("\n") ?? null,
-      swotThreats: evidence?.swot?.threats?.join("\n") ?? null,
-      fundingStage: finance?.fundingStage ?? null,
-      totalFundingUsd: finance?.totalFundingUsd ?? null,
-      lastFundingDate: finance?.lastFundingDate ?? null,
-      revenueRange: finance?.revenueRange ?? null,
-    },
-    products: (business?.products ?? []).map((item) => ({ name: item.name, description: item.description ?? null, url: item.url ?? null })),
-    competitors: (business?.competitors ?? []).map((item) => ({ name: item.name, websiteUrl: item.websiteUrl ?? null, relationship: item.relationship ?? null })),
-    relatedParties: (business?.relatedParties ?? []).map((item) => ({ name: item.name, partyType: item.partyType ?? null, relationship: item.relationship ?? null, websiteUrl: item.websiteUrl ?? null })),
-    trustmrrTechStack: [],
-    trustmrrMarketingChannels: [],
-  };
+  return <>
+    <section className="mt-8 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div className="flex items-center gap-2 text-sm font-black text-emerald-700"><CheckCircle2 className="size-4" /> معاينة المدخلات قبل الحفظ</div>
+          <h2 className="mt-2 text-xl font-black text-slate-950">هوية ومعلومات {preview.name}</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">افتح المعاينة لمراجعة الملف التعريفي والبيانات الأساسية والمعلومات الموسعة والمصادر التي ستتوسع لاحقًا مع MySQL.</p>
+        </div>
+        <span className={`rounded-full px-3 py-2 text-xs font-black ${hasErrors ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"}`}>{hasErrors ? "توجد أخطاء تمنع الحفظ" : "جاهزة للمراجعة والاعتماد"}</span>
+      </div>
+
+      <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <PreviewSummary label="المرحلة" value={Object.keys(enrichment).length} />
+        <PreviewSummary label="الأشخاص" value={enrichment.peopleFinance?.people?.length ?? preview.people.length} />
+        <PreviewSummary label="المنتجات" value={enrichment.business?.products?.length ?? 0} />
+        <PreviewSummary label="المصادر" value={sourceCount} />
+      </div>
+
+      <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm leading-7 text-slate-600">لم يتم اعتماد أي شيء بعد. يمكنك فتح المعاينة والتنقل بين الأقسام.</p>
+        <Button type="button" variant="secondary" onClick={() => setModalOpen(true)}><FileCheck2 className="size-4" /> فتح معاينة المدخلات</Button>
+      </div>
+      <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm leading-7 text-slate-600">سيتم حفظ البيانات المنظمة بعد اعتمادك، مع الاحتفاظ بالبيانات السابقة عند تحديث شركة موجودة.</p>
+        <Button className="min-w-52" onClick={onCommit} disabled={loading || hasErrors}>{loading ? "جارٍ الحفظ..." : "اعتماد وحفظ البيانات"}</Button>
+      </div>
+    </section>
+
+    {modalOpen && <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/65 p-3 sm:p-6" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !loading) setModalOpen(false); }}>
+      <section role="dialog" aria-modal="true" aria-labelledby="company-input-preview-title" className="my-2 w-full max-w-7xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl sm:my-4">
+        <header className="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-50 p-5 sm:p-6">
+          <div><p className="text-xs font-black uppercase tracking-widest text-sky-600">معاينة آمنة قبل الحفظ</p><h2 id="company-input-preview-title" className="mt-1 text-xl font-black text-slate-950 sm:text-2xl">هوية ومعلومات الشركة</h2><p className="mt-2 text-sm leading-7 text-slate-600">هذه القيم هي المدخلات المنظمة التي ستظهر في ملف الشركة وتُحفظ في قاعدة البيانات عند الاعتماد.</p></div>
+          <button type="button" onClick={() => setModalOpen(false)} disabled={loading} aria-label="إغلاق المعاينة" className="rounded-xl p-2 text-slate-500 hover:bg-white hover:text-slate-950 disabled:opacity-50"><X className="size-5" /></button>
+        </header>
+        <div className="max-h-[calc(100vh-8rem)] overflow-y-auto p-3 sm:p-6">
+          <ReviewPanel preview={preview} enrichment={enrichment} issues={issues} reviewTab={reviewTab} setReviewTab={setReviewTab} loading={loading} onCommit={onCommit} />
+        </div>
+      </section>
+    </div>}
+  </>;
 }
 
-function CompanyPreviewBeforeCommit({ preview, enrichment, companyId, issues, loading, onCommit }: { preview: PreviewCompany; enrichment: LlmEnrichmentBundle; companyId: string | null; issues: Issue[]; loading: boolean; onCommit: () => void }) {
-  const hasErrors = issues.some((issue) => issue.severity === "error");
-  return <section className="mt-8"><div className="mb-5 flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between"><div><div className="flex items-center gap-2 text-sm font-black text-emerald-700"><CheckCircle2 className="size-4" /> معاينة مطابقة لصفحة الشركة</div><p className="mt-2 text-sm leading-7 text-slate-600">هذه هي نفس الأقسام والتبويبات التي ستظهر بعد الحفظ. راجعها كما سيرى المستخدم الملف النهائي.</p></div><span className={`rounded-full px-3 py-2 text-xs font-black ${hasErrors ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"}`}>{hasErrors ? "توجد أخطاء تمنع الحفظ" : "جاهزة للمراجعة والاعتماد"}</span></div><CompanyProfileView company={buildProfilePreview(preview, enrichment, companyId)} /><div className="mt-6 flex flex-col gap-3 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between"><p className="text-sm leading-7 text-slate-600">سيتم حفظ البيانات المنظمة بعد اعتمادك، مع الاحتفاظ بالبيانات السابقة عند تحديث شركة موجودة.</p><Button className="min-w-52" onClick={onCommit} disabled={loading || hasErrors}>{loading ? "جارٍ الحفظ..." : "اعتماد وحفظ البيانات"}</Button></div></section>;
+function PreviewSummary({ label, value }: { label: string; value: number }) {
+  return <div className="rounded-2xl bg-slate-50 p-4"><p className="text-xs font-bold text-slate-500">{label}</p><p className="mt-2 text-2xl font-black text-slate-950">{value.toLocaleString("en-US")}</p></div>;
 }
 
 function ReviewPanel({ preview, enrichment, issues, reviewTab, setReviewTab, loading, onCommit }: { preview: PreviewCompany; enrichment: LlmEnrichmentBundle; issues: Issue[]; reviewTab: ReviewKey; setReviewTab: (tab: ReviewKey) => void; loading: boolean; onCommit: () => void }) {

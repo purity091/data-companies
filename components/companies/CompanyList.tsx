@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { DatabaseZap } from "lucide-react";
 import { CompanyDataTable, type CompanyTableRow } from "@/components/companies/CompanyDataTable";
 import { TrustMrrImportButton } from "@/components/imports/TrustMrrImportButton";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +31,8 @@ export function CompanyList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<"preview" | "database" | null>(null);
+  const [initialImporting, setInitialImporting] = useState(false);
+  const [initialImportMessage, setInitialImportMessage] = useState<string | null>(null);
 
   const loadCompanies = useCallback(async (cursor?: string | null, search = "") => {
     setLoading(true);
@@ -70,6 +73,22 @@ export function CompanyList() {
     void loadCompanies(null, query);
   }
 
+  async function importInitialCompanies() {
+    setInitialImporting(true);
+    setInitialImportMessage(null);
+    try {
+      const response = await fetch("/api/imports/initial-companies", { method: "POST" });
+      const body = await response.json() as { created?: number; existing?: number; total?: number; error?: string; details?: string };
+      if (!response.ok) throw new Error(body.details || body.error || "تعذر استيراد الشركات الأولية");
+      setInitialImportMessage(`تم تجهيز ${body.total ?? 0} شركة أولية: أضيفت ${body.created ?? 0}، والموجودة مسبقًا ${body.existing ?? 0}.`);
+      await loadCompanies(null, query);
+    } catch (requestError) {
+      setInitialImportMessage(requestError instanceof Error ? requestError.message : "تعذر استيراد الشركات الأولية");
+    } finally {
+      setInitialImporting(false);
+    }
+  }
+
   const metrics = useMemo(() => {
     const withTrustMrr = companies.filter((company) => company.trustmrr).length;
     const latest = companies.reduce<string | undefined>((value, company) => {
@@ -95,12 +114,17 @@ export function CompanyList() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" onClick={() => void importInitialCompanies()} disabled={initialImporting}>
+              <DatabaseZap className="size-4" /> {initialImporting ? "جارٍ الاستيراد..." : "إضافة الشركات الأولية"}
+            </Button>
             <TrustMrrImportButton onImported={() => void loadCompanies(null, query)} />
             <Link href="/imports"><Button variant="outline">استيراد من AI</Button></Link>
             <Link href="/companies/new"><Button>إضافة شركة</Button></Link>
             <Link href="/"><Button variant="ghost">الرئيسية</Button></Link>
           </div>
         </header>
+
+        {initialImportMessage && <div className="mb-5 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm leading-7 text-sky-800">{initialImportMessage}</div>}
 
         <div className="mb-6 grid gap-3 sm:grid-cols-3">
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">

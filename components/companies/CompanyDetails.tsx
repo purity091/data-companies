@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { CompanyProfileView } from "@/components/companies/CompanyProfileView";
-import { CompanyEnrichmentPrompt } from "@/components/companies/CompanyEnrichmentPrompt";
+import { CompanyAiEditModal } from "@/components/companies/CompanyAiEditModal";
 import { TrustMrrDetailsCard } from "@/components/companies/TrustMrrDetailsCard";
 import { CompanyLlmEnrichmentCard } from "@/components/companies/CompanyLlmEnrichmentCard";
+import { Button } from "@/components/ui/button";
 
 type Company = {
   id: string;
@@ -44,6 +45,7 @@ export function CompanyDetails({ id }: { id: string }) {
   const [investorName, setInvestorName] = useState("");
   const [investorSlug, setInvestorSlug] = useState("");
   const [investorWebsite, setInvestorWebsite] = useState("");
+  const [aiModalOpen, setAiModalOpen] = useState(false);
 
   useEffect(() => {
     void fetch(`/api/companies/${id}`)
@@ -117,6 +119,7 @@ export function CompanyDetails({ id }: { id: string }) {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <Link href="/companies" className="text-sm font-bold text-sky-700 hover:text-sky-900">→ العودة إلى الشركات</Link>
           <div className="flex gap-2">
+            <Button type="button" onClick={() => setAiModalOpen(true)}>إكمال بالذكاء الاصطناعي</Button>
             <Link href={`/companies/${company.id}/edit`} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:border-sky-300 hover:text-sky-700">تعديل الشركة</Link>
           </div>
         </div>
@@ -125,7 +128,6 @@ export function CompanyDetails({ id }: { id: string }) {
 
         <div className="mt-6">
           <CompanyProfileView company={company} />
-          <CompanyEnrichmentPrompt company={company} />
           <TrustMrrDetailsCard
             slug={company.trustmrrSlug || company.slug}
             details={company.trustmrr ? {
@@ -173,6 +175,7 @@ export function CompanyDetails({ id }: { id: string }) {
             </form>
           </div>
         </section>
+        <CompanyAiEditModal company={company} open={aiModalOpen} onClose={() => setAiModalOpen(false)} onSaved={(savedCompany) => setCompany(savedCompany as Company)} />
       </div>
     </main>
   );

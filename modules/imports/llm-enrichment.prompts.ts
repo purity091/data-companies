@@ -75,6 +75,118 @@ export const enrichmentPromptDefinitions: PromptDefinition[] = [
   },
 ];
 
+export type EnrichmentPromptSlice = PromptDefinition & {
+  sliceId: string;
+  part: keyof LlmEnrichmentBundle;
+};
+
+export const enrichmentPromptSlices: EnrichmentPromptSlice[] = [
+  {
+    sliceId: "identity_core",
+    part: "identity",
+    id: "identity",
+    instructionId: "identity_profile",
+    title: "1A. الهوية والبيانات الأساسية",
+    purpose: "الاسم والوصف والرابط والدولة والمجال وسنة التأسيس فقط.",
+    fields: ["companyKey", "name", "legalName", "description", "websiteUrl", "countryName", "industryName", "foundedYear", "sources"],
+    fieldGuidance: [
+      "أعد الحقول المتاحة فقط، ولا تملأ أي قيمة بالتخمين.",
+      "اكتب description بالعربية الفصحى في فقرة قصيرة، واستخدم null عند عدم التحقق.",
+    ],
+  },
+  {
+    sliceId: "identity_operations",
+    part: "identity",
+    id: "identity",
+    instructionId: "identity_profile",
+    title: "1B. التشغيل والتقنية",
+    purpose: "نوع الشركة والمقر وعدد الموظفين والتقنيات وقنوات التسويق فقط.",
+    fields: ["companyKey", "companyType", "headquarters", "employeeCount", "techStack", "marketingChannels", "sources"],
+    fieldGuidance: [
+      "لا تقدّر عدد الموظفين. استخدم null عند عدم وجود مصدر واضح.",
+      "أعد techStack وmarketingChannels كمصفوفتين قصيرتين عند توفر الدليل.",
+    ],
+  },
+  {
+    sliceId: "business_model",
+    part: "business",
+    id: "business",
+    instructionId: "business_market",
+    title: "2A. نموذج العمل والسوق",
+    purpose: "نموذج العمل والقيمة والعملاء والتسعير والأسواق فقط.",
+    fields: ["companyKey", "businessModel", "valueProposition", "targetCustomers", "pricingModel", "markets", "sources"],
+    fieldGuidance: [
+      "اكتب الحقول الوصفية بالعربية الفصحى وباختصار.",
+      "أعد markets كمصفوفة، ولا تضف سوقًا غير موثق.",
+    ],
+  },
+  {
+    sliceId: "business_ecosystem",
+    part: "business",
+    id: "business",
+    instructionId: "business_market",
+    title: "2B. المنتجات والعلاقات",
+    purpose: "المنتجات والمنافسون والأطراف المرتبطة وملخص العلاقات فقط.",
+    fields: ["companyKey", "relationshipsSummary", "products", "competitors", "relatedParties", "sources"],
+    fieldGuidance: [
+      "كل عنصر في المنتجات والمنافسين والأطراف المرتبطة يجب أن يكون موثقًا.",
+      "استخدم [] عند عدم وجود عناصر موثوقة، ولا تخترع منافسين.",
+    ],
+  },
+  {
+    sliceId: "people_team",
+    part: "peopleFinance",
+    id: "peopleFinance",
+    instructionId: "people_finance",
+    title: "3A. الأشخاص المؤثرون",
+    purpose: "المؤسسون وأعضاء الفريق والأشخاص المؤثرون فقط.",
+    fields: ["companyKey", "people", "sources"],
+    fieldGuidance: [
+      "كل شخص يحتاج fullName، ويمكن وضع jobTitle وlinkedinUrl كـ null.",
+      "استخدم [] عند عدم وجود أشخاص يمكن التحقق منهم.",
+    ],
+  },
+  {
+    sliceId: "people_finance",
+    part: "peopleFinance",
+    id: "peopleFinance",
+    instructionId: "people_finance",
+    title: "3B. التمويل والحالة التجارية",
+    purpose: "المستثمرون والتمويل والإيرادات والحالة التجارية فقط.",
+    fields: ["companyKey", "investors", "fundingStage", "totalFundingUsd", "lastFundingDate", "revenueRange", "businessStatus", "sources"],
+    fieldGuidance: [
+      "استخدم null للأرقام والتواريخ غير المؤكدة، ولا تنشئ جولات تمويل من التخمين.",
+      "أعد totalFundingUsd كرقم بالدولار دون رمز العملة.",
+    ],
+  },
+  {
+    sliceId: "evidence_strategy",
+    part: "evidence",
+    id: "evidence",
+    instructionId: "evidence_risks",
+    title: "4A. الاستراتيجية والجمهور",
+    purpose: "المجال الاستراتيجي ونطاق الوصول والجمهور والتحليل وإشارات النمو والتوسع فقط.",
+    fields: ["companyKey", "strategicDomain", "reachScope", "audienceSegments", "strategicAnalysis", "growthSignals", "expansionPlan", "sources"],
+    fieldGuidance: [
+      "اكتب التحليل بالعربية الفصحى مع التمييز بين الحقيقة والاستنتاج.",
+      "استخدم [] لشرائح الجمهور عند عدم وجود دليل.",
+    ],
+  },
+  {
+    sliceId: "evidence_quality",
+    part: "evidence",
+    id: "evidence",
+    instructionId: "evidence_risks",
+    title: "4B. الأدلة والمخاطر وSWOT",
+    purpose: "تحليل SWOT وملخص الأدلة ودرجة الثقة والفجوات والمخاطر فقط.",
+    fields: ["companyKey", "swot", "evidenceSummary", "confidence", "dataGaps", "risks", "lastVerifiedAt", "sources"],
+    fieldGuidance: [
+      "confidence رقم بين 0 و1، واستخدم null عند ضعف الأدلة.",
+      "لا تملأ الفجوات أو المخاطر بتخمينات؛ اذكرها فقط عند وجود أساس واضح.",
+    ],
+  },
+];
+
 export function buildEnrichmentPrompt(definition: PromptDefinition, companyHint: string) {
   return `${rules}
 المهمة: ${definition.title}

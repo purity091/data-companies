@@ -2,6 +2,7 @@ import { encodeCursor } from "@/lib/cursor";
 import type { CompanyCreateInput, CompanyListInput, CompanyUpdateInput } from "@/modules/companies/company.types";
 import type { PersonCreatePayload } from "@/modules/people/people.validation";
 import type { InvestorLinkPayload } from "@/modules/investors/investors.validation";
+import { INITIAL_COMPANY_CATALOG } from "@/modules/catalog/initial-company-catalog";
 
 type PreviewCountry = { id: string; code: string; name: string };
 type PreviewIndustry = { id: string; slug: string; name: string };
@@ -26,6 +27,11 @@ export type PreviewCompany = {
   people: PreviewPerson[];
   markets: { market: PreviewMarket }[];
   investors: { investor: PreviewInvestor }[];
+  llmEnrichment?: Record<string, unknown> | null;
+  products?: { name: string; description: string | null; url: string | null }[];
+  competitors?: { name: string; websiteUrl: string | null; relationship: string | null }[];
+  relatedParties?: { name: string; partyType: string | null; relationship: string | null; websiteUrl: string | null }[];
+  sources?: { title: string | null; url: string; publisher: string | null; sourceType: string; evidence: string | null }[];
 };
 
 type PreviewState = {
@@ -49,12 +55,15 @@ function createInitialState(): PreviewState {
     { id: "1", code: "US", name: "United States" },
     { id: "2", code: "GB", name: "United Kingdom" },
     { id: "3", code: "DE", name: "Germany" },
+    { id: "4", code: "SA", name: "السعودية" },
   ];
   const industries: PreviewIndustry[] = [
     { id: "1", slug: "artificial-intelligence", name: "Artificial Intelligence" },
     { id: "2", slug: "clean-energy", name: "Clean Energy" },
     { id: "3", slug: "healthcare", name: "Healthcare" },
   ];
+  const catalogDomains = [...new Set(INITIAL_COMPANY_CATALOG.map((item) => item.domain))];
+  industries.push(...catalogDomains.map((name, index) => ({ id: String(index + 4), slug: slugify(name), name })));
   const markets: PreviewMarket[] = [
     { id: "1", slug: "enterprise-software", name: "Enterprise Software" },
     { id: "2", slug: "energy-storage", name: "Energy Storage" },
@@ -116,6 +125,19 @@ function createInitialState(): PreviewState {
     }),
   ];
 
+  companies.push(...INITIAL_COMPANY_CATALOG.map((item, index) => company({
+    id: String(1000 + index),
+    slug: slugify(item.name),
+    name: item.name,
+    legalName: null,
+    description: `المجال: ${item.domain}\nالتصنيف: ${item.classification}`,
+    websiteUrl: item.websiteUrl,
+    foundedYear: null,
+    countryId: "4",
+    industryId: String(catalogDomains.indexOf(item.domain) + 4),
+    createdAt: "2026-08-20T00:00:00.000Z",
+  })));
+
   companies[0].people.push({ id: "1", fullName: "Amelia Carter", jobTitle: "Chief Executive Officer", linkedinUrl: "https://linkedin.com/in/example", companyId: "3" });
   companies[1].people.push({ id: "2", fullName: "Lukas Weber", jobTitle: "Founder & CEO", linkedinUrl: null, companyId: "2" });
   companies[2].people.push({ id: "3", fullName: "Maya Chen", jobTitle: "Co-founder and CEO", linkedinUrl: "https://linkedin.com/in/example", companyId: "1" });
@@ -125,7 +147,7 @@ function createInitialState(): PreviewState {
   companies[2].investors.push({ investor: investors[0] });
   companies[1].investors.push({ investor: investors[1] });
 
-  return { companies, countries, industries, markets, investors, nextCompanyId: 4, nextPersonId: 4, nextInvestorId: 3, nextMarketId: 4 };
+  return { companies, countries, industries, markets, investors, nextCompanyId: 1050, nextPersonId: 4, nextInvestorId: 3, nextMarketId: 4 };
 }
 
 class PreviewStore {
@@ -354,6 +376,19 @@ class PreviewStore {
     const relation = { investor };
     company.investors.push(relation);
     return relation;
+  }
+
+  setEnrichment(companyId: string, enrichment: {
+    llmEnrichment: Record<string, unknown>;
+    products: PreviewCompany["products"];
+    competitors: PreviewCompany["competitors"];
+    relatedParties: PreviewCompany["relatedParties"];
+    sources: PreviewCompany["sources"];
+  }) {
+    const company = this.getCompany(companyId);
+    if (!company) return null;
+    Object.assign(company, enrichment, { updatedAt: new Date().toISOString() });
+    return company;
   }
 }
 

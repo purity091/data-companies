@@ -11,12 +11,63 @@ import { catalogService } from "@/modules/catalog/catalog.service";
 import { marketsRepository } from "@/modules/markets/markets.repository";
 import { mergeEnrichmentIntoCompany } from "@/modules/imports/llm-enrichment.merge";
 import { ensureLlmEnrichmentTables, saveLlmEnrichment } from "@/modules/imports/llm-enrichment.repository";
+import type { LlmEnrichmentBundle } from "@/modules/imports/llm-enrichment.validation";
 
 function same(value: string, candidate: string) {
   return value.trim().toLocaleLowerCase() === candidate.trim().toLocaleLowerCase();
 }
 
-async function commitToPreview(company: LlmCompany) {
+function previewEnrichment(bundle: LlmEnrichmentBundle) {
+  const identity = bundle.identity;
+  const business = bundle.business;
+  const finance = bundle.peopleFinance;
+  const evidence = bundle.evidence;
+  const sources = [...(identity?.sources ?? []), ...(business?.sources ?? []), ...(finance?.sources ?? []), ...(evidence?.sources ?? [])]
+    .filter((source) => source.url)
+    .map((source) => ({ title: source.title || "مصدر غير معنون", url: source.url as string, publisher: source.publisher ?? null, sourceType: source.sourceType, evidence: source.evidence ?? null }));
+
+  return {
+    llmEnrichment: {
+      promptVersion: "llm-4-step-v1",
+      companyType: identity?.companyType ?? null,
+      headquarters: identity?.headquarters ?? null,
+      employeeCount: identity?.employeeCount ?? null,
+      techStack: identity?.techStack?.join("\n") ?? null,
+      marketingChannels: identity?.marketingChannels?.join("\n") ?? null,
+      businessModel: business?.businessModel ?? null,
+      valueProposition: business?.valueProposition ?? null,
+      targetCustomers: business?.targetCustomers ?? null,
+      pricingModel: business?.pricingModel ?? null,
+      relationshipsSummary: business?.relationshipsSummary ?? null,
+      fundingStage: finance?.fundingStage ?? null,
+      totalFundingUsd: finance?.totalFundingUsd ?? null,
+      lastFundingDate: finance?.lastFundingDate ?? null,
+      revenueRange: finance?.revenueRange ?? null,
+      businessStatus: finance?.businessStatus ?? null,
+      strategicDomain: evidence?.strategicDomain ?? null,
+      reachScope: evidence?.reachScope ?? null,
+      audienceSegments: evidence?.audienceSegments?.join("\n") ?? null,
+      strategicAnalysis: evidence?.strategicAnalysis ?? null,
+      growthSignals: evidence?.growthSignals ?? null,
+      expansionPlan: evidence?.expansionPlan ?? null,
+      swotStrengths: evidence?.swot?.strengths?.join("\n") ?? null,
+      swotWeaknesses: evidence?.swot?.weaknesses?.join("\n") ?? null,
+      swotOpportunities: evidence?.swot?.opportunities?.join("\n") ?? null,
+      swotThreats: evidence?.swot?.threats?.join("\n") ?? null,
+      evidenceSummary: evidence?.evidenceSummary ?? null,
+      confidence: evidence?.confidence ?? null,
+      dataGaps: evidence?.dataGaps?.join("\n") ?? null,
+      risks: evidence?.risks?.join("\n") ?? null,
+      lastVerifiedAt: evidence?.lastVerifiedAt ?? null,
+    },
+    products: (business?.products ?? []).map((product) => ({ name: product.name, description: product.description ?? null, url: product.url ?? null })),
+    competitors: (business?.competitors ?? []).map((competitor) => ({ name: competitor.name, websiteUrl: competitor.websiteUrl ?? null, relationship: competitor.relationship ?? null })),
+    relatedParties: (business?.relatedParties ?? []).map((party) => ({ name: party.name, partyType: party.partyType ?? null, relationship: party.relationship ?? null, websiteUrl: party.websiteUrl ?? null })),
+    sources,
+  };
+}
+
+async function commitToPreview(company: LlmCompany, enrichment?: LlmEnrichmentBundle) {
   const created = previewStore.createCompany({
     name: company.name,
     legalName: company.legalName,
@@ -29,6 +80,7 @@ async function commitToPreview(company: LlmCompany) {
   for (const person of company.people) previewStore.addPerson(created.id, person);
   for (const investor of company.investors) previewStore.addInvestor(created.id, { ...investor, slug: investor.slug ?? undefined });
   for (const market of company.markets) previewStore.attachMarket(created.id, market);
+  if (enrichment) previewStore.setEnrichment(created.id, previewEnrichment(enrichment));
   return previewStore.getCompany(created.id);
 }
 
@@ -69,7 +121,7 @@ export async function POST(request: Request) {
     // Keep fields from the preview/current company when only one enrichment stage is submitted.
     const mergedCompany = enrichment ? mergeEnrichmentIntoCompany(enrichment, company) : company;
     if (isPreviewMode()) {
-      const saved = await commitToPreview(mergedCompany);
+      const saved = await commitToPreview(mergedCompany, enrichment);
       return NextResponse.json({ mode: "preview", data: saved, sourcesReceived: company.sources.length }, { status: 201 });
     }
     if (!isDatabaseConfigured()) return databaseNotConfiguredResponse();

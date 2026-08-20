@@ -21,7 +21,9 @@ type VersionResponse = {
 
 export function AppVersionBanner({ installed }: { installed: AppVersionInfo }) {
   const [version, setVersion] = useState<VersionResponse | null>(null);
-  const [checking, setChecking] = useState(true);
+  // Keep the first client render identical to the server render. The initial
+  // GitHub check starts in the effect after hydration.
+  const [checking, setChecking] = useState(false);
 
   const checkVersion = useCallback(async () => {
     setChecking(true);

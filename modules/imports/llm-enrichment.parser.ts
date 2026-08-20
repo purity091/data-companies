@@ -156,11 +156,57 @@ function normalizeObjectKeys(value: unknown): unknown {
 }
 
 function unwrapObject(value: unknown): UnknownRecord | null {
-  if (!isRecord(value)) return null;
-  for (const key of ["data", "result", "response"]) {
-    if (isRecord(value[key])) return value[key];
+  let current: unknown = value;
+
+  // LLMs often wrap otherwise valid JSON in data/result/response, and some
+  // return an array containing the requested object. Accept both forms before
+  // validating the stage-specific fields.
+  for (let depth = 0; depth < 4; depth += 1) {
+    if (Array.isArray(current)) {
+      current = current.find(isRecord);
+      continue;
+    }
+    if (!isRecord(current)) return null;
+    const record = current;
+    const wrapper = ["data", "result", "response", "output", "enrichment"]
+      .map((key) => record[key])
+      .find((candidate) => isRecord(candidate) || Array.isArray(candidate));
+    if (!wrapper) return current;
+    current = wrapper;
   }
-  return value;
+
+  return isRecord(current) ? current : null;
+}
+
+function extractPart(value: UnknownRecord, part: EnrichmentPartKey): UnknownRecord {
+  const normalized = normalizeObjectKeys(value);
+  if (!isRecord(normalized)) return value;
+
+  const signatures: Record<EnrichmentPartKey, string[]> = {
+    identity: ["identity", "identityprofile", "companyprofile"],
+    business: ["business", "businessmarket", "businessmodel"],
+    peopleFinance: ["peoplefinance", "people", "finance", "peopleandfinance"],
+    evidence: ["evidence", "evidencerisks", "strategy", "strategic"],
+  };
+
+  for (const [key, candidate] of Object.entries(normalized)) {
+    if (signatures[part].includes(keySignature(key))) {
+      const unwrapped = unwrapObject(candidate);
+      if (unwrapped) return unwrapped;
+    }
+  }
+
+  // A few models return { stages: { identity: {...} } }.
+  for (const key of ["stages", "sections", "parts"]) {
+    const container = normalized[key];
+    if (!isRecord(container)) continue;
+    const candidate = Object.entries(container).find(([candidateKey]) => signatures[part].includes(keySignature(candidateKey)))?.[1];
+    const unwrapped = candidate === undefined ? null : unwrapObject(candidate);
+    if (unwrapped) return unwrapped;
+  }
+
+  // The expected format is already a flat stage object.
+  return normalized;
 }
 
 function stripTrailingCommas(value: string) {
@@ -256,7 +302,8 @@ export function parseEnrichmentBundle(parts: Partial<Record<EnrichmentPartKey, s
       continue;
     }
 
-    const raw = parseJson(parts[key] as string);
+    const parsedJson = parseJson(parts[key] as string);
+    const raw = parsedJson ? extractPart(parsedJson, key) : null;
     if (!raw) {
       issues.push({ severity: "warning", field: key, message: "تعذر قراءة هذه المرحلة، لذلك تم تجاهلها مع الاحتفاظ ببقية البيانات." });
       continue;

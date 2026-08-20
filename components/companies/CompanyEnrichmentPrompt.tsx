@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { Check, Copy, ExternalLink } from "lucide-react";
+import { enrichmentPromptDefinitions, buildEnrichmentPrompt } from "@/modules/imports/llm-enrichment.prompts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,110 +23,84 @@ type CompanyForPrompt = {
   investors: { investor: { name: string; websiteUrl?: string | null } }[];
 };
 
-function buildPrompt(company: CompanyForPrompt, missingFields: string[]) {
-  return {
-    task: "enrich_company_record",
-    instructions: [
-      "أعد JSON صالحًا فقط من دون Markdown أو شرح خارج JSON.",
-      "اكتب جميع الحقول الوصفية والتحليلية باللغة العربية الفصحى، مع إبقاء الأسماء الرسمية والروابط وأسماء التقنيات بلغتها الأصلية عند الحاجة.",
-      "استخدم مصادر عامة موثوقة وأدرج كل رابط مصدر استُخدم.",
-      "لا تخمّن. استخدم null أو [] عندما لا يمكن التحقق من قيمة.",
-      "حافظ على اسم الشركة ومعرّفها الحاليين كما هما.",
-      "سيتم لصق النتيجة في صفحة استيراد الذكاء الاصطناعي لمراجعتها قبل الحفظ.",
-    ],
-    company: {
-      id: company.id,
-      slug: company.slug,
-      name: company.name,
-      knownData: {
-        legalName: company.legalName,
-        description: company.description,
-        websiteUrl: company.websiteUrl,
-        foundedYear: company.foundedYear,
-        countryName: company.country?.name ?? null,
-        industryName: company.industry?.name ?? null,
-        people: company.people,
-        investors: company.investors.map(({ investor }) => investor),
-        markets: company.markets.map(({ market }) => market.name),
-      },
-    },
-    missingFields,
-    outputSchema: {
-      name: company.name,
-      legalName: null,
-      description: null,
-      websiteUrl: null,
-      foundedYear: null,
-      countryName: null,
-      industryName: null,
-      people: [{ fullName: "", jobTitle: null, linkedinUrl: null }],
-      investors: [{ name: "", slug: null, websiteUrl: null }],
-      markets: [""],
-      sources: [{ title: "", url: "https://example.com" }],
-    },
-  };
-}
-
 export function CompanyEnrichmentPrompt({ company }: { company: CompanyForPrompt }) {
-  const [copied, setCopied] = useState(false);
-  const [generated, setGenerated] = useState(false);
+  const [copiedSection, setCopiedSection] = useState<string | null>(null);
 
-  const missingFields = useMemo(() => {
-    const missing: string[] = [];
-    if (!company.legalName) missing.push("legalName");
-    if (!company.description) missing.push("description");
-    if (!company.websiteUrl) missing.push("websiteUrl");
-    if (!company.foundedYear) missing.push("foundedYear");
-    if (!company.country) missing.push("countryName");
-    if (!company.industry) missing.push("industryName");
-    if (company.people.length === 0) missing.push("people");
-    if (company.investors.length === 0) missing.push("investors");
-    if (company.markets.length === 0) missing.push("markets");
-    missing.push("sources");
-    return missing;
-  }, [company]);
+  const companyHint = useMemo(() => [
+    `اسم الشركة: ${company.name}`,
+    `الرابط الرسمي: ${company.websiteUrl || "غير متوفر"}`,
+    `الاسم القانوني: ${company.legalName || "غير متوفر"}`,
+    `الدولة: ${company.country?.name || "غير محددة"}`,
+    `المجال: ${company.industry?.name || "غير محدد"}`,
+    `الأسواق الحالية: ${company.markets.map(({ market }) => market.name).join(", ") || "لا توجد"}`,
+    `عدد الأشخاص المسجلين: ${company.people.length}`,
+    `عدد المستثمرين المسجلين: ${company.investors.length}`,
+  ].join("\n"), [company]);
 
-  const prompt = useMemo(
-    () => JSON.stringify(buildPrompt(company, missingFields), null, 2),
-    [company, missingFields],
+  const prompts = useMemo(
+    () => enrichmentPromptDefinitions.map((definition) => ({
+      definition,
+      prompt: buildEnrichmentPrompt(definition, companyHint),
+    })),
+    [companyHint],
   );
 
-  async function copyPrompt() {
+  async function copyPrompt(id: string, prompt: string) {
     await navigator.clipboard.writeText(prompt);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 2000);
+    setCopiedSection(id);
+    window.setTimeout(() => setCopiedSection((current) => current === id ? null : current), 2000);
   }
 
   return (
-    <Card className="border-sky-200/80 bg-sky-50/50 shadow-sm">
-      <CardHeader className="flex flex-row items-start justify-between gap-4">
-        <div>
-          <CardTitle className="text-lg font-black text-foreground">إكمال ملف الشركة بالذكاء الاصطناعي</CardTitle>
-          <p className="mt-1 text-sm leading-6 text-muted-foreground">
-            أنشئ تعليمة JSON جاهزة لـ ChatGPT أو Perplexity لجمع البيانات الناقصة مع المصادر.
-          </p>
+    <Card className="mt-8 border-sky-200/80 bg-sky-50/50 shadow-sm">
+      <CardHeader>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle className="text-lg font-black text-foreground">إكمال بيانات {company.name} مرحلةً مرحلة</CardTitle>
+            <p className="mt-2 text-sm leading-7 text-muted-foreground">
+              اختر القسم، انسخ تعليمته المخصصة لهذه الشركة، أرسلها إلى LLM، ثم افتح القسم وألصق JSON الناتج.
+            </p>
+          </div>
+          <Badge variant="secondary">4 أقسام مستقلة</Badge>
         </div>
-        <Badge variant="secondary">{missingFields.length} حقول ناقصة</Badge>
       </CardHeader>
       <CardContent>
-        <div className="flex flex-wrap gap-2">
-          {missingFields.map((field) => <Badge key={field} variant="outline">{field}</Badge>)}
+        <div className="grid gap-4 lg:grid-cols-2">
+          {prompts.map(({ definition, prompt }, index) => {
+            const copied = copiedSection === definition.id;
+            return (
+              <Card key={definition.id} className="border-slate-200 bg-white shadow-sm">
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <CardTitle className="text-base font-black">{definition.title}</CardTitle>
+                      <p className="mt-2 text-xs leading-6 text-muted-foreground">{definition.purpose}</p>
+                    </div>
+                    <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sm font-black text-sky-700">{index + 1}</span>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-xs font-bold text-slate-500">الحقول: {definition.fields.join(", ")}</p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button type="button" onClick={() => void copyPrompt(definition.id, prompt)} className="bg-sky-700 text-white hover:bg-sky-800">
+                      {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+                      {copied ? "تم نسخ التعليمة" : "نسخ تعليمة الذكاء الاصطناعي"}
+                    </Button>
+                    <Button asChild nativeButton={false} variant="outline">
+                      <Link href={`/imports?companyId=${encodeURIComponent(company.id)}&part=${encodeURIComponent(definition.id)}`}>
+                        فتح قسم الإدخال <ExternalLink className="size-4" />
+                      </Link>
+                    </Button>
+                  </div>
+                  <details className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <summary className="cursor-pointer text-xs font-black text-slate-700">عرض التعليمة قبل نسخها</summary>
+                    <textarea readOnly value={prompt} aria-label={`تعليمة ${definition.title}`} className="mt-3 min-h-[220px] w-full rounded-lg border border-slate-200 bg-white p-3 font-mono text-[11px] leading-6 text-slate-700 outline-none" />
+                  </details>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
-        <div className="mt-5 flex flex-wrap gap-3">
-          <Button type="button" onClick={() => setGenerated(true)}>
-            {generated ? "تم توليد التعليمة" : "توليد تعليمة JSON"}
-          </Button>
-          {generated && <Button type="button" variant="outline" onClick={() => void copyPrompt()}>{copied ? "تم النسخ" : "نسخ التعليمة"}</Button>}
-          {generated && <Button asChild type="button" variant="ghost"><Link href={`/imports?companyId=${encodeURIComponent(company.id)}`}>فتح استيراد AI</Link></Button>}
-        </div>
-        {generated && (
-          <textarea
-            readOnly
-            value={prompt}
-            aria-label="تعليمة إثراء الشركة بصيغة JSON"
-            className="mt-5 min-h-[360px] w-full rounded-xl border border-border bg-background p-4 font-mono text-xs leading-6 text-foreground outline-none"
-          />
-        )}
       </CardContent>
     </Card>
   );

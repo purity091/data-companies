@@ -25,11 +25,12 @@ function buildPrompt(company: CompanyForPrompt, missingFields: string[]) {
   return {
     task: "enrich_company_record",
     instructions: [
-      "Return ONLY valid JSON. Do not use Markdown fences.",
-      "Use reliable public sources and include every source URL used.",
-      "Do not guess. Use null or an empty array when a value cannot be verified.",
-      "Keep the existing company name and id unchanged.",
-      "The result will be pasted into the application's AI Import page for review before saving.",
+      "أعد JSON صالحًا فقط من دون Markdown أو شرح خارج JSON.",
+      "اكتب جميع الحقول الوصفية والتحليلية باللغة العربية الفصحى، مع إبقاء الأسماء الرسمية والروابط وأسماء التقنيات بلغتها الأصلية عند الحاجة.",
+      "استخدم مصادر عامة موثوقة وأدرج كل رابط مصدر استُخدم.",
+      "لا تخمّن. استخدم null أو [] عندما لا يمكن التحقق من قيمة.",
+      "حافظ على اسم الشركة ومعرّفها الحاليين كما هما.",
+      "سيتم لصق النتيجة في صفحة استيراد الذكاء الاصطناعي لمراجعتها قبل الحفظ.",
     ],
     company: {
       id: company.id,

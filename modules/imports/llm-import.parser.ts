@@ -154,18 +154,32 @@ function parseLabeledText(rawText: string): UnknownRecord {
   return output;
 }
 
+function compactIssues(issues: ImportIssue[]) {
+  const unique = [...new Map(issues.map((issue) => [`${issue.severity}:${issue.field}:${issue.message}`, issue])).values()];
+  const maxVisible = 6;
+  if (unique.length <= maxVisible) return unique;
+  return [
+    ...unique.slice(0, maxVisible),
+    { severity: "warning" as const, field: "summary", message: `تم إخفاء ${unique.length - maxVisible} ملاحظات متشابهة. راجع الحقول الظاهرة فقط.` },
+  ];
+}
+
 export function parseLlmImport(rawText: string): ParsedLlmImport {
   const json = parseJson(rawText);
   const format = json ? "json" : rawText.includes("\n") ? "markdown" : "text";
   const candidate = normalizeRecord(json || parseLabeledText(rawText), rawText);
   const result = llmCompanySchema.safeParse(candidate);
   if (!result.success) {
-    return { format, company: null, issues: result.error.issues.map((issue) => ({ severity: "error", field: issue.path.join(".") || "company", message: issue.message })) };
+    return {
+      format,
+      company: null,
+      issues: compactIssues(result.error.issues.map((issue) => ({ severity: "error", field: issue.path.join(".") || "company", message: issue.message }))),
+    };
   }
   const issues: ImportIssue[] = [];
   if (!result.data.websiteUrl) issues.push({ severity: "warning", field: "websiteUrl", message: "لم يتم العثور على موقع موثوق للشركة." });
   if (!result.data.countryName) issues.push({ severity: "warning", field: "countryName", message: "الدولة غير محددة." });
   if (!result.data.industryName) issues.push({ severity: "warning", field: "industryName", message: "الصناعة أو القطاع غير محدد." });
   if (!result.data.sources.length) issues.push({ severity: "warning", field: "sources", message: "لم يتم العثور على روابط مصادر." });
-  return { format, company: result.data, issues };
+  return { format, company: result.data, issues: compactIssues(issues) };
 }

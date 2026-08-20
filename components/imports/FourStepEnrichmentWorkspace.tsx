@@ -9,6 +9,7 @@ import {
   Check,
   CheckCircle2,
   ChevronLeft,
+  Copy,
   ExternalLink,
   FileCheck2,
   Globe2,
@@ -57,6 +58,67 @@ type PreviewCompany = {
 };
 
 const emptyParts: Parts = { identity: "", business: "", peopleFinance: "", evidence: "" };
+
+const partKeys: PartKey[] = ["identity", "business", "peopleFinance", "evidence"];
+
+function issuePart(issue: Issue, fallback: PartKey): PartKey {
+  const candidate = issue.field.split(".")[0] as PartKey;
+  return partKeys.includes(candidate) ? candidate : fallback;
+}
+
+function buildRepairPrompt(parts: Parts, issues: Issue[], selectedIssue?: Issue, active: PartKey = "identity") {
+  const stage = selectedIssue ? issuePart(selectedIssue, active) : null;
+  const relevantIssues = selectedIssue
+    ? issues.filter((issue) => issue.field === stage || issue.field.startsWith(`${stage}.`) || issue.field === selectedIssue.field)
+    : issues;
+  const content = stage
+    ? `المرحلة: ${stage}\n${parts[stage] || "لا يوجد JSON مدخل لهذه المرحلة."}`
+    : partKeys.filter((key) => parts[key].trim()).map((key) => `المرحلة: ${key}\n${parts[key]}`).join("\n\n");
+
+  return `أنت مصلح JSON متخصص. أصلح JSON التالي بناءً على ملاحظات التحقق.
+
+القواعد:
+- أعد JSON صالحًا فقط، دون Markdown أو شرح خارج JSON.
+- لا تغيّر البيانات الصحيحة ولا تخترع معلومات جديدة.
+- عالج الأخطاء المذكورة فقط، وحافظ على أسماء الحقول المطلوبة.
+- عند غياب قيمة استخدم null أو [] حسب نوع الحقل.
+- اجعل النصوص الوصفية باللغة العربية.
+
+ملاحظات التحقق:
+${relevantIssues.map((issue) => `- ${issue.field}: ${issue.message}`).join("\n") || "راجع صحة البنية العامة ونسّق JSON فقط."}
+
+JSON المطلوب إصلاحه:
+${content}
+
+أعد النسخة المصححة فقط لتتمكن من لصقها مباشرة في خانة ${stage || "المرحلة المناسبة"}.`;
+}
+
+function RepairPromptButton({ prompt, label = "نسخ تعليمات الإصلاح" }: { prompt: string; label?: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    await navigator.clipboard.writeText(prompt);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1800);
+  }
+
+  return <button type="button" onClick={() => void copy()} className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-bold text-sky-800 hover:bg-sky-100"><Copy className="size-3.5" />{copied ? "تم النسخ" : label}</button>;
+}
+
+function IssueList({ issues, parts, active }: { issues: Issue[]; parts: Parts; active: PartKey }) {
+  return <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div><h2 className="font-black text-slate-950">نتيجة التحقق</h2><p className="mt-1 text-xs text-slate-500">يمكنك نسخ تعليمات جاهزة وإرسالها إلى ChatGPT أو أي LLM لإصلاح JSON.</p></div>
+      <RepairPromptButton prompt={buildRepairPrompt(parts, issues, undefined, active)} />
+    </div>
+    <div className="mt-4 space-y-2">
+      {issues.map((issue, index) => <div key={`${issue.field}-${index}`} className={`flex flex-wrap items-start justify-between gap-3 rounded-2xl p-3 text-sm ${issue.severity === "error" ? "bg-red-50 text-red-800" : "bg-amber-50 text-amber-900"}`}>
+        <div className="flex min-w-0 flex-1 items-start gap-3"><span className="mt-0.5"><AlertTriangle className="size-4" /></span><span><b dir="ltr" className="font-mono text-xs">{issue.field}</b><span className="mx-2">—</span>{issue.message}</span></div>
+        <RepairPromptButton label="نسخ إصلاح" prompt={buildRepairPrompt(parts, issues, issue, active)} />
+      </div>)}
+    </div>
+  </div>;
+}
 
 const reviewItems: { id: ReviewKey; label: string; short: string; icon: typeof Building2 }[] = [
   { id: "summary", label: "الملخص", short: "نظرة عامة", icon: FileCheck2 },
@@ -206,7 +268,7 @@ export function FourStepEnrichmentWorkspace() {
         </div>
 
         {(error || status) && <div className={`mt-6 flex items-start gap-3 rounded-2xl border p-4 text-sm leading-7 ${error ? "border-red-200 bg-red-50 text-red-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>{error ? <AlertTriangle className="mt-1 size-5 shrink-0" /> : <CheckCircle2 className="mt-1 size-5 shrink-0" />}<span>{error || status}</span></div>}
-        {issues.length > 0 && <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-center justify-between gap-3"><div><h2 className="font-black text-slate-950">نتيجة التحقق</h2><p className="mt-1 text-xs text-slate-500">الأخطاء تمنع الحفظ، والتحذيرات للمراجعة فقط.</p></div><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold">{issues.length} ملاحظات</span></div><div className="mt-4 space-y-2">{issues.map((issue, index) => <div key={`${issue.field}-${index}`} className={`flex items-start gap-3 rounded-2xl p-3 text-sm ${issue.severity === "error" ? "bg-red-50 text-red-800" : "bg-amber-50 text-amber-900"}`}><span className="mt-0.5">{issue.severity === "error" ? <AlertTriangle className="size-4" /> : <AlertTriangle className="size-4" />}</span><span><b dir="ltr" className="font-mono text-xs">{issue.field}</b><span className="mx-2">—</span>{issue.message}</span></div>)}</div></div>}
+        {issues.length > 0 && <IssueList issues={issues} parts={parts} active={active} />}
 
         {preview && enrichment && <CompanyPreviewBeforeCommit preview={preview} enrichment={enrichment} companyId={companyId} issues={issues} loading={loading} onCommit={() => void commitBundle()} />}
       </div>

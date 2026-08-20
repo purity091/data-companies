@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { AppVersionBanner } from "@/components/AppVersionBanner";
+import { getAppVersion } from "@/lib/app-version";
 
 export const metadata: Metadata = {
   title: "Global Companies",
@@ -9,7 +11,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ar" dir="rtl">
-      <body suppressHydrationWarning>{children}</body>
+      <body suppressHydrationWarning>
+        <AppVersionBanner installed={getAppVersion()} />
+        {children}
+      </body>
     </html>
   );
 }

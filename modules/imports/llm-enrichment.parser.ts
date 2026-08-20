@@ -234,6 +234,17 @@ function issueMessage(issue: { path: PropertyKey[]; message: string }, severity:
   };
 }
 
+function compactIssues(issues: EnrichmentParseIssue[]) {
+  const unique = [...new Map(issues.map((issue) => [`${issue.severity}:${issue.field}:${issue.message}`, issue])).values()];
+  const maxVisible = 8;
+  if (unique.length <= maxVisible) return unique;
+  const hiddenCount = unique.length - maxVisible;
+  return [
+    ...unique.slice(0, maxVisible),
+    { severity: "warning" as const, field: "summary", message: `تم تجميع ${hiddenCount} ملاحظات متشابهة لتسريع الإدخال. البيانات الصالحة محفوظة.` },
+  ];
+}
+
 export function parseEnrichmentBundle(parts: Partial<Record<EnrichmentPartKey, string>>, fallback: Partial<LlmCompany> = {}) {
   const issues: EnrichmentParseIssue[] = [];
   const parsed: Partial<LlmEnrichmentBundle> = {};
@@ -247,7 +258,7 @@ export function parseEnrichmentBundle(parts: Partial<Record<EnrichmentPartKey, s
 
     const raw = parseJson(parts[key] as string);
     if (!raw) {
-      issues.push({ severity: "error", field: key, message: "تعذر العثور على JSON صالح. يمكن ترك الشرح خارج JSON، لكن يجب أن يحتوي الرد على كائن JSON قابل للقراءة." });
+      issues.push({ severity: "warning", field: key, message: "تعذر قراءة هذه المرحلة، لذلك تم تجاهلها مع الاحتفاظ ببقية البيانات." });
       continue;
     }
 
@@ -272,7 +283,7 @@ export function parseEnrichmentBundle(parts: Partial<Record<EnrichmentPartKey, s
       parsed[key] = relaxedResult.data as never;
       issues.push(...result.error.issues.map((issue) => issueMessage(issue, "warning")));
     } else {
-      issues.push(...result.error.issues.map((issue) => issueMessage(issue, "error")));
+      issues.push(...result.error.issues.map((issue) => issueMessage(issue, "warning")));
     }
   }
 
@@ -294,17 +305,17 @@ export function parseEnrichmentBundle(parts: Partial<Record<EnrichmentPartKey, s
     return {
       bundle: null,
       company: null,
-      issues: [...issues, ...bundleResult.error.issues.map((issue) => issueMessage(issue, "error"))],
+      issues: compactIssues([...issues, ...bundleResult.error.issues.map((issue) => issueMessage(issue, "warning"))]),
     };
   }
 
   try {
-    return { bundle: bundleResult.data, company: mergeEnrichmentIntoCompany(bundleResult.data, fallback), issues };
+    return { bundle: bundleResult.data, company: mergeEnrichmentIntoCompany(bundleResult.data, fallback), issues: compactIssues(issues) };
   } catch (error) {
     return {
       bundle: bundleResult.data,
       company: null,
-      issues: [...issues, { severity: "error" as const, field: "company", message: error instanceof Error ? error.message : "تعذر تجميع بيانات الشركة" }],
+      issues: compactIssues([...issues, { severity: "error" as const, field: "company", message: error instanceof Error ? error.message : "تعذر تجميع بيانات الشركة" }]),
     };
   }
 }

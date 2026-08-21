@@ -29,12 +29,13 @@ function previewEnrichment(bundle: LlmEnrichmentBundle) {
   return {
     llmEnrichment: {
       promptVersion: "llm-4-step-v1",
+      vision: identity?.vision ?? null,
       companyType: identity?.companyType ?? null,
       headquarters: identity?.headquarters ?? null,
       employeeCount: identity?.employeeCount ?? null,
       techStack: identity?.techStack?.join("\n") ?? null,
       marketingChannels: identity?.marketingChannels?.join("\n") ?? null,
-      businessModel: business?.businessModel ?? null,
+      businessModel: business?.businessModel ?? identity?.businessModel ?? null,
       valueProposition: business?.valueProposition ?? null,
       targetCustomers: business?.targetCustomers ?? null,
       pricingModel: business?.pricingModel ?? null,
@@ -44,8 +45,8 @@ function previewEnrichment(bundle: LlmEnrichmentBundle) {
       lastFundingDate: finance?.lastFundingDate ?? null,
       revenueRange: finance?.revenueRange ?? null,
       businessStatus: finance?.businessStatus ?? null,
-      strategicDomain: evidence?.strategicDomain ?? null,
-      reachScope: evidence?.reachScope ?? null,
+      strategicDomain: evidence?.strategicDomain ?? identity?.strategicDomain ?? null,
+      reachScope: evidence?.reachScope ?? identity?.reachScope ?? null,
       audienceSegments: evidence?.audienceSegments?.join("\n") ?? null,
       strategicAnalysis: evidence?.strategicAnalysis ?? null,
       growthSignals: evidence?.growthSignals ?? null,
@@ -124,12 +125,22 @@ export async function POST(request: Request) {
       const saved = await commitToPreview(mergedCompany, enrichment);
       return NextResponse.json({ mode: "preview", data: saved, sourcesReceived: company.sources.length }, { status: 201 });
     }
-    if (!isDatabaseConfigured()) return databaseNotConfiguredResponse();
-    if (enrichment) await ensureLlmEnrichmentTables();
-    const saved = await commitToDatabase(mergedCompany, companyId);
-    if (!saved) throw new Error("Company was saved but could not be loaded");
-    const enrichmentSaved = enrichment ? await saveLlmEnrichment(saved.id, enrichment) : null;
-    return NextResponse.json({ data: serializeCompany(saved), sourcesReceived: mergedCompany.sources.length, enrichment: enrichmentSaved }, { status: 201 });
+    if (!isDatabaseConfigured()) {
+      const saved = await commitToPreview(mergedCompany, enrichment);
+      return NextResponse.json({ mode: "preview", data: saved, sourcesReceived: company.sources.length }, { status: 201 });
+    }
+
+    try {
+      if (enrichment) await ensureLlmEnrichmentTables();
+      const saved = await commitToDatabase(mergedCompany, companyId);
+      if (!saved) throw new Error("Company was saved but could not be loaded");
+      const enrichmentSaved = enrichment ? await saveLlmEnrichment(saved.id, enrichment) : null;
+      return NextResponse.json({ data: serializeCompany(saved), sourcesReceived: mergedCompany.sources.length, enrichment: enrichmentSaved }, { status: 201 });
+    } catch (dbError) {
+      console.warn("Database commit failed, falling back to preview store:", dbError);
+      const saved = await commitToPreview(mergedCompany, enrichment);
+      return NextResponse.json({ mode: "preview", data: saved, sourcesReceived: company.sources.length, warning: "Database saving unavailable; saved in preview mode." }, { status: 201 });
+    }
   } catch (error) {
     return apiErrorResponse(error);
   }

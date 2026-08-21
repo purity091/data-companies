@@ -1,4 +1,5 @@
 import { llmCompanySchema, type LlmCompany } from "./llm-import.validation";
+import { llmEnrichmentBundleSchema, type LlmEnrichmentBundle } from "./llm-enrichment.validation";
 
 export type ImportIssue = {
   severity: "error" | "warning";
@@ -9,6 +10,7 @@ export type ImportIssue = {
 export type ParsedLlmImport = {
   format: "json" | "markdown" | "text";
   company: LlmCompany | null;
+  enrichment: LlmEnrichmentBundle | null;
   issues: ImportIssue[];
 };
 
@@ -173,13 +175,26 @@ export function parseLlmImport(rawText: string): ParsedLlmImport {
     return {
       format,
       company: null,
-      issues: compactIssues(result.error.issues.map((issue) => ({ severity: "error", field: issue.path.join(".") || "company", message: issue.message }))),
+      enrichment: null,
+      issues: compactIssues(result.error.issues.map((issue) => ({ severity: "error", field: issue.path.map(String).join(".") || "company", message: issue.message }))),
     };
   }
+
+  let enrichment: LlmEnrichmentBundle | null = null;
+  if (json) {
+    const rawEnrichment = json.enrichment ?? json.enrichments ?? (json.identity || json.business || json.peopleFinance || json.evidence ? json : null);
+    if (rawEnrichment && isRecord(rawEnrichment)) {
+      const enrichmentResult = llmEnrichmentBundleSchema.safeParse(rawEnrichment);
+      if (enrichmentResult.success) {
+        enrichment = enrichmentResult.data;
+      }
+    }
+  }
+
   const issues: ImportIssue[] = [];
   if (!result.data.websiteUrl) issues.push({ severity: "warning", field: "websiteUrl", message: "لم يتم العثور على موقع موثوق للشركة." });
   if (!result.data.countryName) issues.push({ severity: "warning", field: "countryName", message: "الدولة غير محددة." });
   if (!result.data.industryName) issues.push({ severity: "warning", field: "industryName", message: "الصناعة أو القطاع غير محدد." });
   if (!result.data.sources.length) issues.push({ severity: "warning", field: "sources", message: "لم يتم العثور على روابط مصادر." });
-  return { format, company: result.data, issues: compactIssues(issues) };
+  return { format, company: result.data, enrichment, issues: compactIssues(issues) };
 }

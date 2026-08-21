@@ -1,0 +1,291 @@
+{
+  "_meta": {
+    "version": "1.0",
+    "description": "ملف مرجعي شامل لجميع حقول الشركة في قاعدة البيانات - يُستخدم كمثال للإدخال عبر الذكاء الاصطناعي",
+    "stages": ["identity", "business", "peopleFinance", "evidence"]
+  },
+
+  "company": {
+    "_comment": "الحقول الأساسية للشركة - تُحفظ في جدول companies",
+    "name": "سلة للتجارة الإلكترونية",
+    "legalName": "شركة سلة للتجارة الإلكترونية المحدودة",
+    "description": "منصة تجارة إلكترونية سعودية تتيح للأفراد والشركات إنشاء متاجر إلكترونية احترافية بسهولة دون الحاجة لخبرة تقنية.",
+    "websiteUrl": "https://salla.com",
+    "foundedYear": 2016,
+    "countryName": "Saudi Arabia",
+    "industryName": "E-Commerce Technology",
+    "people": [
+      {
+        "fullName": "صالح الفليج",
+        "jobTitle": "الرئيس التنفيذي والمؤسس",
+        "linkedinUrl": "https://linkedin.com/in/salehfalfleig"
+      },
+      {
+        "fullName": "خلدون الجوهري",
+        "jobTitle": "المدير التقني",
+        "linkedinUrl": null
+      }
+    ],
+    "investors": [
+      {
+        "name": "STV",
+        "slug": "stv",
+        "websiteUrl": "https://stv.vc"
+      },
+      {
+        "name": "Sanabil Investments",
+        "slug": "sanabil",
+        "websiteUrl": "https://sanabil.com"
+      }
+    ],
+    "markets": ["Saudi Arabia", "UAE", "Kuwait", "Bahrain", "Oman", "Qatar"],
+    "sources": [
+      {
+        "title": "الموقع الرسمي لسلة",
+        "url": "https://salla.com/about"
+      }
+    ]
+  },
+
+  "enrichment": {
+    "_comment": "بيانات الإثراء عبر الذكاء الاصطناعي - 4 مراحل",
+
+    "identity": {
+      "_comment": "المرحلة 1: هوية الشركة والملف التعريفي",
+      "instructionId": "identity_profile",
+      "companyKey": "salla",
+      "name": "سلة للتجارة الإلكترونية",
+      "legalName": "شركة سلة للتجارة الإلكترونية المحدودة",
+      "description": "منصة SaaS لإنشاء المتاجر الإلكترونية في السوق السعودي والخليجي.",
+      "vision": "تمكين كل بائع عربي من بناء تجارته الإلكترونية بسهولة واحترافية.",
+      "websiteUrl": "https://salla.com",
+      "countryName": "Saudi Arabia",
+      "industryName": "E-Commerce Technology",
+      "foundedYear": 2016,
+      "companyType": "شركة مساهمة خاصة",
+      "headquarters": "الرياض، المملكة العربية السعودية",
+      "employeeCount": 400,
+      "businessModel": "B2B SaaS - اشتراك شهري/سنوي",
+      "strategicDomain": "التجارة الإلكترونية وتمكين البائعين",
+      "reachScope": "إقليمي - منطقة الخليج العربي",
+      "markets": ["Saudi Arabia", "UAE", "Kuwait", "Bahrain"],
+      "currentMarkets": ["Saudi Arabia", "UAE"],
+      "techStack": ["Next.js", "Laravel", "MySQL", "Redis", "AWS"],
+      "marketingChannels": ["LinkedIn", "Twitter/X", "YouTube", "Google Ads", "محتوى عربي"],
+      "sources": [
+        {
+          "title": "الصفحة الرسمية - سلة",
+          "url": "https://salla.com",
+          "publisher": "Salla",
+          "sourceType": "official",
+          "accessedAt": "2024-08-20T00:00:00Z",
+          "evidence": "بيانات الشركة من الموقع الرسمي"
+        }
+      ]
+    },
+
+    "business": {
+      "_comment": "المرحلة 2: نموذج العمل والسوق والعلاقات",
+      "instructionId": "business_market",
+      "companyKey": "salla",
+      "businessModel": "B2B SaaS - اشتراكات شهرية وسنوية مع خطط متعددة: مجانية ومميزة وبرو.",
+      "valueProposition": "تمكين التجار من بناء متاجر إلكترونية احترافية بدون كود في أقل من 5 دقائق، مع دعم كامل لطرق الدفع والشحن العربية.",
+      "targetCustomers": "الأفراد والشركات الصغيرة والمتوسطة الراغبة في الدخول لعالم التجارة الإلكترونية في منطقة الخليج.",
+      "pricingModel": "Freemium + اشتراك مميز 99 ريال/شهر + خطة برو 299 ريال/شهر",
+      "relationshipsSummary": "شراكات استراتيجية مع بنوك سعودية لتوفير بوابات دفع، وتعاون مع شركات شحن محلية كـ أرامكس وإمارات بوست.",
+      "products": [
+        {
+          "name": "سلة - منصة المتاجر",
+          "description": "منصة إنشاء المتاجر الإلكترونية الرئيسية مع لوحة تحكم عربية كاملة",
+          "url": "https://salla.com"
+        },
+        {
+          "name": "سلة بارتنرز",
+          "description": "برنامج الشركاء والمطورين لبناء تطبيقات على منصة سلة",
+          "url": "https://partners.salla.com"
+        },
+        {
+          "name": "زيد - مساعد الذكاء الاصطناعي",
+          "description": "أداة ذكاء اصطناعي مدمجة لمساعدة التجار في كتابة المحتوى وتحليل البيانات",
+          "url": null
+        }
+      ],
+      "competitors": [
+        {
+          "name": "Shopify",
+          "websiteUrl": "https://shopify.com",
+          "relationship": "منافس عالمي غير مباشر"
+        },
+        {
+          "name": "Zid",
+          "websiteUrl": "https://zid.sa",
+          "relationship": "منافس محلي مباشر"
+        },
+        {
+          "name": "Expandcart",
+          "websiteUrl": "https://expandcart.com",
+          "relationship": "منافس إقليمي"
+        }
+      ],
+      "relatedParties": [
+        {
+          "name": "Tamara",
+          "partyType": "شريك تقني",
+          "relationship": "مزود خدمة الشراء الآن والدفع لاحقاً (BNPL)",
+          "websiteUrl": "https://tamara.co"
+        },
+        {
+          "name": "Aramex",
+          "partyType": "شريك لوجستي",
+          "relationship": "شريك شحن رئيسي",
+          "websiteUrl": "https://aramex.com"
+        }
+      ],
+      "markets": ["Saudi Arabia", "UAE", "Kuwait"],
+      "sources": [
+        {
+          "title": "مقال تمويل سلة - مجلة Forbes Arabia",
+          "url": "https://forbesar.com/salla-funding",
+          "publisher": "Forbes Arabia",
+          "sourceType": "news",
+          "accessedAt": "2024-08-20T00:00:00Z",
+          "evidence": "إعلان جولة التمويل Series B"
+        }
+      ]
+    },
+
+    "peopleFinance": {
+      "_comment": "المرحلة 3: الأشخاص والتمويل والاستثمار",
+      "instructionId": "people_finance",
+      "companyKey": "salla",
+      "people": [
+        {
+          "fullName": "صالح الفليج",
+          "jobTitle": "الرئيس التنفيذي والمؤسس",
+          "linkedinUrl": "https://linkedin.com/in/salehfalfleig",
+          "xHandle": "@SalehFleig",
+          "isFounder": true,
+          "sourceUrls": ["https://salla.com/about"]
+        },
+        {
+          "fullName": "خلدون الجوهري",
+          "jobTitle": "المدير التقني",
+          "linkedinUrl": null,
+          "xHandle": null,
+          "isFounder": false,
+          "sourceUrls": []
+        }
+      ],
+      "investors": [
+        {
+          "name": "STV",
+          "slug": "stv",
+          "websiteUrl": "https://stv.vc",
+          "stage": "Series B",
+          "sourceUrls": ["https://stv.vc/portfolio"]
+        },
+        {
+          "name": "Sanabil Investments",
+          "slug": "sanabil",
+          "websiteUrl": "https://sanabil.com",
+          "stage": "Series A",
+          "sourceUrls": []
+        }
+      ],
+      "fundingStage": "Series B",
+      "totalFundingUsd": 130000000,
+      "lastFundingDate": "2022-10-15",
+      "revenueRange": "$10M - $50M",
+      "businessStatus": "نشطة ومتنامية",
+      "sources": [
+        {
+          "title": "Salla raises $130M Series B",
+          "url": "https://techcrunch.com/salla-series-b",
+          "publisher": "TechCrunch",
+          "sourceType": "news",
+          "accessedAt": "2024-08-20T00:00:00Z",
+          "evidence": "تأكيد جولة التمويل Series B بقيمة 130 مليون دولار"
+        }
+      ]
+    },
+
+    "evidence": {
+      "_comment": "المرحلة 4: التحليل الاستراتيجي والأدلة والمخاطر",
+      "instructionId": "evidence_risks",
+      "companyKey": "salla",
+      "strategicDomain": "تمكين التجارة الإلكترونية في السوق العربي",
+      "reachScope": "إقليمي - الخليج العربي مع خطط للتوسع لبقية الدول العربية",
+      "audienceSegments": [
+        "تجار التجزئة الصغار والمتوسطون",
+        "الشركات الناشئة في التجارة الإلكترونية",
+        "المؤثرون والموردون الراغبون في البيع أونلاين",
+        "الشركات الكبرى الباحثة عن حلول Enterprise"
+      ],
+      "strategicAnalysis": "تتمتع سلة بميزة تنافسية واضحة في السوق السعودي بفضل فهمها العميق للاحتياجات المحلية كدعم طرق الدفع العربية والشحن المحلي والمحتوى العربي الكامل. رسّخت حضورها عبر مجتمع قوي من التجار وبرنامج شركاء نشط يضم مئات المطورين.",
+      "growthSignals": "نمو قاعدة التجار بنسبة 200% خلال 3 سنوات. إطلاق منتجات AI جديدة. توسع في السوق الكويتي والبحريني.",
+      "expansionPlan": "التوسع في مصر والأردن والمغرب خلال 2024-2025، وإطلاق نسخة Enterprise للشركات الكبرى.",
+      "swot": {
+        "strengths": [
+          "مصممة خصيصاً للسوق العربي والخليجي",
+          "دعم كامل للغة العربية وطرق الدفع المحلية",
+          "مجتمع كبير من التجار والمطورين",
+          "تمويل ضخم يدعم التوسع"
+        ],
+        "weaknesses": [
+          "تركز جغرافي في السوق السعودي",
+          "منافسة شديدة من Shopify عالمياً",
+          "محدودية الميزات Enterprise مقارنة بالحلول العالمية"
+        ],
+        "opportunities": [
+          "نمو التجارة الإلكترونية في المنطقة العربية",
+          "رؤية 2030 ودعم التحول الرقمي في السعودية",
+          "التوسع في الأسواق العربية غير المخدومة جيداً"
+        ],
+        "threats": [
+          "دخول منافسين عالميين كبار للسوق المحلي",
+          "التغيرات التنظيمية في قوانين التجارة الإلكترونية",
+          "ضغط الأسعار من المنافسين المحليين"
+        ]
+      },
+      "evidenceSummary": "بيانات موثقة من مصادر رسمية تشمل الموقع الرسمي وتصريحات المسؤولين وتقارير الاستثمار.",
+      "confidence": 0.88,
+      "dataGaps": [
+        "الإيرادات الدقيقة غير معلنة",
+        "عدد الموظفين الدقيق غير مؤكد",
+        "تفاصيل خطة التوسع في 2025"
+      ],
+      "risks": [
+        "اعتماد كبير على السوق السعودي",
+        "ضغط تنافسي متصاعد من Zid",
+        "احتمال تغيير اللوائح التنظيمية"
+      ],
+      "lastVerifiedAt": "2024-08-20",
+      "sources": [
+        {
+          "title": "موقع سلة الرسمي",
+          "url": "https://salla.com",
+          "publisher": "Salla",
+          "sourceType": "official",
+          "accessedAt": "2024-08-20T00:00:00Z",
+          "evidence": "البيانات التعريفية الرسمية"
+        },
+        {
+          "title": "Salla raises $130M - TechCrunch",
+          "url": "https://techcrunch.com/salla-series-b",
+          "publisher": "TechCrunch",
+          "sourceType": "news",
+          "accessedAt": "2024-08-20T00:00:00Z",
+          "evidence": "توثيق جولة التمويل Series B"
+        },
+        {
+          "title": "ملف سلة على LinkedIn",
+          "url": "https://linkedin.com/company/salla",
+          "publisher": "LinkedIn",
+          "sourceType": "social",
+          "accessedAt": "2024-08-20T00:00:00Z",
+          "evidence": "بيانات الفريق وحجم الشركة"
+        }
+      ]
+    }
+  }
+}

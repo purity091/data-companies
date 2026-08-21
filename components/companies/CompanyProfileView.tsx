@@ -16,11 +16,16 @@ export type CompanyProfileData = {
   markets: { market: { name: string } }[];
   investors: { investor: { name: string; websiteUrl?: string | null } }[];
   llmEnrichment?: {
+    vision?: string | null;
     companyType?: string | null;
     employeeCount?: number | null;
+    headquarters?: string | null;
     techStack?: string | null;
     marketingChannels?: string | null;
     businessModel?: string | null;
+    valueProposition?: string | null;
+    targetCustomers?: string | null;
+    pricingModel?: string | null;
     relationshipsSummary?: string | null;
     strategicDomain?: string | null;
     reachScope?: string | null;
@@ -36,7 +41,14 @@ export type CompanyProfileData = {
     totalFundingUsd?: string | number | null;
     lastFundingDate?: string | null;
     revenueRange?: string | null;
+    businessStatus?: string | null;
+    evidenceSummary?: string | null;
+    confidence?: number | null;
+    dataGaps?: string | null;
+    risks?: string | null;
+    lastVerifiedAt?: string | null;
   } | null;
+  sources?: { id?: string; title?: string | null; url?: string | null; publisher?: string | null; sourceType?: string | null; evidence?: string | null }[];
   products?: { name: string; description: string | null; url: string | null }[];
   competitors?: { name: string; websiteUrl: string | null; relationship: string | null }[];
   relatedParties?: { name: string; partyType: string | null; relationship: string | null; websiteUrl: string | null }[];
@@ -246,24 +258,32 @@ export function CompanyProfileView({ company }: { company: CompanyProfileData })
                 <div className="space-y-6">
                   <div className="rounded-2xl bg-slate-50 p-5">
                     <h3 className="text-xs font-black uppercase tracking-wide text-sky-600">الرؤية واللمحة التعريفية</h3>
+                    {llm?.vision && <p className="mt-3 text-sm font-medium leading-8 text-slate-700">{llm.vision}</p>}
                     <p className="mt-3 text-sm font-medium leading-8 text-slate-700">{company.description || "لم تتم إضافة لمحة تعريفية كاملة للشركة بعد."}</p>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <DetailTile label="سنة التأسيس" value={company.foundedYear?.toString() || "غير محددة"} />
-                    <DetailTile label="المقر الرئيسي" value={country} />
+                    <DetailTile label="المقر الرئيسي" value={llm?.headquarters || country} />
                     <DetailTile label="الصناعة" value={industry} accent="violet" />
                     <DetailTile label="الأسواق" value={`${markets.length} أسواق`} accent="emerald" />
                     <DetailTile label="نوع الشركة" value={llm?.companyType || "غير محدد"} accent="sky" />
                     <DetailTile label="عدد الموظفين" value={llm?.employeeCount == null ? "غير محدد" : llm.employeeCount.toLocaleString("en-US")} accent="sky" />
+                    {llm?.businessStatus && <DetailTile label="حالة النشاط" value={llm.businessStatus} accent="emerald" />}
+                    {llm?.lastVerifiedAt && <DetailTile label="آخر تحقق" value={llm.lastVerifiedAt} accent="amber" />}
                   </div>
                 </div>
               )}
               {identityTab === "strategy" && (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <DetailTile label="نموذج النشاط" value={llm?.businessModel || industry} />
-                  <DetailTile label="المجال الاستراتيجي" value={llm?.strategicDomain || industry} accent="violet" />
-                  <DetailTile label="نطاق الوصول" value={llm?.reachScope || country} accent="sky" />
-                  <DetailTile label="الأسواق الحالية" value={markets.join("، ") || "غير مسجلة"} accent="violet" />
+                <div className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <DetailTile label="نموذج النشاط" value={llm?.businessModel || industry} />
+                    <DetailTile label="المجال الاستراتيجي" value={llm?.strategicDomain || industry} accent="violet" />
+                    <DetailTile label="نطاق الوصول" value={llm?.reachScope || country} accent="sky" />
+                    <DetailTile label="الأسواق الحالية" value={markets.join("، ") || "غير مسجلة"} accent="violet" />
+                    {llm?.pricingModel && <DetailTile label="نموذج التسعير" value={llm.pricingModel} accent="amber" />}
+                  </div>
+                  {llm?.valueProposition && <TextPanel title="القيمة المقترحة" value={llm.valueProposition} empty="" />}
+                  {llm?.targetCustomers && <TextPanel title="العملاء المستهدفون" value={llm.targetCustomers} empty="" />}
                 </div>
               )}
               {identityTab === "legal" && (
@@ -323,13 +343,60 @@ export function CompanyProfileView({ company }: { company: CompanyProfileData })
           <section id="main-section-4" className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-sm">
             <div className="bg-slate-50/80 p-6 sm:p-7">
               <SectionTitle number="04" tone="amber" title="التحليل الاستراتيجي والجمهور" description="قسم واحد للتحليلات المتقدمة، الجمهور المستهدف، نموذج العمل، والتوسع المستقبلي." />
-              <SubTabs tone="amber" active={strategyTab} onChange={setStrategyTab} items={[{ id: "analysis", label: "نظرة عامة" }, { id: "swot", label: "تحليل SWOT" }, { id: "audience", label: "الجمهور المستهدف" }, { id: "expansion", label: "التوسع والنمو" }]} />
+              <SubTabs tone="amber" active={strategyTab} onChange={setStrategyTab} items={[{ id: "analysis", label: "نظرة عامة" }, { id: "swot", label: "تحليل SWOT" }, { id: "audience", label: "الجمهور المستهدف" }, { id: "expansion", label: "التوسع والنمو" }, { id: "evidence", label: "الأدلة والمخاطر" }]} />
             </div>
             <div className="p-6 sm:p-7">
-              {strategyTab === "analysis" && <div className="grid gap-4 sm:grid-cols-2"><DetailTile label="المجال الاستراتيجي" value={llm?.strategicDomain || industry} accent="amber" /><DetailTile label="نطاق الوصول" value={llm?.reachScope || markets.join("، ") || country} accent="sky" /><div className="sm:col-span-2"><TextPanel title="التحليل الاستراتيجي" value={llm?.strategicAnalysis || llm?.businessModel} empty="لم تتم إضافة التحليل الاستراتيجي بعد." /></div></div>}
+              {strategyTab === "analysis" && (
+                <div className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <DetailTile label="المجال الاستراتيجي" value={llm?.strategicDomain || industry} accent="amber" />
+                    <DetailTile label="نطاق الوصول" value={llm?.reachScope || markets.join("، ") || country} accent="sky" />
+                  </div>
+                  <TextPanel title="التحليل الاستراتيجي" value={llm?.strategicAnalysis || llm?.businessModel} empty="لم تتم إضافة التحليل الاستراتيجي بعد." />
+                  {llm?.evidenceSummary && <TextPanel title="ملخص الأدلة" value={llm.evidenceSummary} empty="" />}
+                  {llm?.confidence != null && (
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                      <span className="text-xs font-black text-amber-900">درجة الثقة بالبيانات</span>
+                      <p className="mt-2 text-2xl font-black text-amber-700">{Math.round(llm.confidence * 100)}%</p>
+                    </div>
+                  )}
+                </div>
+              )}
               {strategyTab === "swot" && <SwotGrid swot={swot} />}
-              {strategyTab === "audience" && <div className="space-y-4"><TagPanel title="الجمهور المستهدف" items={audienceSegments} empty="لم تتم إضافة شرائح الجمهور بعد." /></div>}
-              {strategyTab === "expansion" && <div className="grid gap-4 sm:grid-cols-2"><TextPanel title="خطة التوسع" value={llm?.expansionPlan} empty="لم تتم إضافة خطة التوسع بعد." /><TextPanel title="إشارات النمو" value={llm?.growthSignals} empty="لم تتم إضافة إشارات نمو بعد." /></div>}
+              {strategyTab === "audience" && (
+                <div className="space-y-4">
+                  <TagPanel title="شرائح الجمهور المستهدف" items={audienceSegments} empty="لم تتم إضافة شرائح الجمهور بعد." />
+                  {llm?.targetCustomers && <TextPanel title="وصف العملاء المستهدفين" value={llm.targetCustomers} empty="" />}
+                </div>
+              )}
+              {strategyTab === "expansion" && (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <TextPanel title="خطة التوسع" value={llm?.expansionPlan} empty="لم تتم إضافة خطة التوسع بعد." />
+                  <TextPanel title="إشارات النمو" value={llm?.growthSignals} empty="لم تتم إضافة إشارات نمو بعد." />
+                </div>
+              )}
+              {strategyTab === "evidence" && (
+                <div className="space-y-4">
+                  {llm?.risks && <TagPanel title="المخاطر" items={splitLines(llm.risks)} empty="لا توجد مخاطر مسجلة." />}
+                  {llm?.dataGaps && <TagPanel title="فجوات البيانات" items={splitLines(llm.dataGaps)} empty="لا توجد فجوات مسجلة." />}
+                  {(company.sources ?? []).length > 0 && (
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+                      <h3 className="text-sm font-black text-amber-900">المصادر الموثقة ({company.sources?.length})</h3>
+                      <div className="mt-4 space-y-3">
+                        {company.sources?.map((source, index) => (
+                          <div key={source.id ?? index} className="rounded-xl bg-white p-3">
+                            <p className="text-sm font-bold text-slate-900">{source.title || "مصدر بلا عنوان"}</p>
+                            {source.publisher && <p className="mt-1 text-xs text-slate-500">{source.publisher} · {source.sourceType}</p>}
+                            {source.url && <a href={source.url} target="_blank" rel="noreferrer" className="mt-1 block text-xs font-bold text-sky-700 hover:underline">{source.url}</a>}
+                            {source.evidence && <p className="mt-2 text-xs leading-5 text-slate-600">{source.evidence}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {!(company.sources ?? []).length && !llm?.risks && !llm?.dataGaps && <EmptyState>لا توجد أدلة أو مخاطر مسجلة بعد.</EmptyState>}
+                </div>
+              )}
             </div>
           </section>
         </div>

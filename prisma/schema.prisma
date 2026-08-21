@@ -235,6 +235,7 @@ model TrustMrrCofounder {
 model CompanyLlmEnrichment {
   id                   BigInt    @id @default(autoincrement()) @db.BigInt
   companyId            BigInt    @unique @db.BigInt
+  vision               String?   @db.Text
   companyType          String?   @db.VarChar(100)
   headquarters         String?   @db.VarChar(255)
   employeeCount        Int?

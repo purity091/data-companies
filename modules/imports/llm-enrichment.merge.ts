@@ -33,7 +33,13 @@ export function mergeEnrichmentIntoCompany(bundle: LlmEnrichmentBundle, fallback
         websiteUrl: investor.websiteUrl ?? null,
       };
     }),
-    markets: business?.markets ?? fallback.markets ?? [],
+    markets: business?.markets?.length
+      ? business.markets
+      : identity?.currentMarkets?.length
+        ? identity.currentMarkets
+        : identity?.markets?.length
+          ? identity.markets
+          : fallback.markets ?? [],
     sources: [...new Map([
       ...(identity?.sources ?? []),
       ...(business?.sources ?? []),

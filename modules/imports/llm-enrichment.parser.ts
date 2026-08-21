@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { mergeEnrichmentIntoCompany } from "./llm-enrichment.merge";
 import type { LlmCompany } from "./llm-import.validation";
 import {
@@ -35,8 +36,12 @@ const keyAliases: Record<string, string> = {
   companykey: "companyKey",
   companyid: "companyKey",
   companyslug: "companyKey",
+  permanentidentifier: "companyKey",
+  permanentid: "companyKey",
   مفتاحالشركة: "companyKey",
   معرفالشركة: "companyKey",
+  "المعرّف الدائم": "companyKey",
+  المعرّفالدائم: "companyKey",
   "اسم الشركة": "name",
   اسمالشركة: "name",
   الاسم: "name",
@@ -45,6 +50,9 @@ const keyAliases: Record<string, string> = {
   الاسمالقانوني: "legalName",
   الوصف: "description",
   نبذة: "description",
+  vision: "vision",
+  الرؤية: "vision",
+  اللمحةالتعريفية: "vision",
   الموقع: "websiteUrl",
   رابطالموقع: "websiteUrl",
   website: "websiteUrl",
@@ -58,6 +66,13 @@ const keyAliases: Record<string, string> = {
   سنةالتأسيس: "foundedYear",
   headquarters: "headquarters",
   المقر: "headquarters",
+  businessmodel: "businessModel",
+  نموذجالنشاط: "businessModel",
+  نموذجالعمل: "businessModel",
+  strategicdomain: "strategicDomain",
+  المجالالاستراتيجي: "strategicDomain",
+  reachscope: "reachScope",
+  نطاقالوصول: "reachScope",
   employees: "employeeCount",
   employeecount: "employeeCount",
   عددالموظفين: "employeeCount",
@@ -74,6 +89,9 @@ const keyAliases: Record<string, string> = {
   الأسواق: "markets",
   الاسواق: "markets",
   markets: "markets",
+  currentmarkets: "currentMarkets",
+  الأسواقالحالية: "currentMarkets",
+  الاسواقالحالية: "currentMarkets",
   المصادر: "sources",
   المراجع: "sources",
   sources: "sources",
@@ -84,8 +102,6 @@ const keyAliases: Record<string, string> = {
   الأطرافالمرتبطة: "relatedParties",
   الاطرافالمرتبطة: "relatedParties",
   relatedparties: "relatedParties",
-  businessmodel: "businessModel",
-  نموذجالعمل: "businessModel",
   القيمةالمقترحة: "valueProposition",
   valueproposition: "valueProposition",
   العملاءالمستهدفون: "targetCustomers",
@@ -107,10 +123,6 @@ const keyAliases: Record<string, string> = {
   revenuerange: "revenueRange",
   حالةالنشاط: "businessStatus",
   businessstatus: "businessStatus",
-  المجالالاستراتيجي: "strategicDomain",
-  strategicdomain: "strategicDomain",
-  نطاقالوصول: "reachScope",
-  reachscope: "reachScope",
   شرائحالجمهور: "audienceSegments",
   audiencesegments: "audienceSegments",
   التحليلالاستراتيجي: "strategicAnalysis",
@@ -209,22 +221,43 @@ function extractPart(value: UnknownRecord, part: EnrichmentPartKey): UnknownReco
   return normalized;
 }
 
+function normalizeJsonQuotesAndFormatting(str: string): string {
+  return str
+    .replace(/^\uFEFF/, "")
+    .replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"')
+    .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, "'")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/(^|[^:])\/\/.*/g, "$1")
+    .trim();
+}
+
 function stripTrailingCommas(value: string) {
   return value.replace(/,\s*([}\]])/g, "$1");
 }
 
 function jsonCandidates(raw: string) {
-  const cleaned = raw.replace(/^\uFEFF/, "").replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
-  const candidates = [cleaned];
-  for (let start = 0; start < cleaned.length; start += 1) {
-    if (cleaned[start] !== "{" && cleaned[start] !== "[") continue;
-    const opening = cleaned[start];
+  const normalized = normalizeJsonQuotesAndFormatting(raw);
+  const candidates: string[] = [];
+
+  const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/gi;
+  let match;
+  while ((match = codeBlockRegex.exec(normalized)) !== null) {
+    if (match[1]?.trim()) {
+      candidates.push(match[1].trim());
+    }
+  }
+
+  candidates.push(normalized);
+
+  for (let start = 0; start < normalized.length; start += 1) {
+    if (normalized[start] !== "{" && normalized[start] !== "[") continue;
+    const opening = normalized[start];
     const closing = opening === "{" ? "}" : "]";
     let depth = 0;
     let inString = false;
     let escaped = false;
-    for (let index = start; index < cleaned.length; index += 1) {
-      const character = cleaned[index];
+    for (let index = start; index < normalized.length; index += 1) {
+      const character = normalized[index];
       if (inString) {
         if (escaped) escaped = false;
         else if (character === "\\") escaped = true;
@@ -238,11 +271,12 @@ function jsonCandidates(raw: string) {
       if (character === opening) depth += 1;
       if (character === closing) depth -= 1;
       if (depth === 0) {
-        candidates.push(cleaned.slice(start, index + 1));
+        candidates.push(normalized.slice(start, index + 1));
         break;
       }
     }
   }
+
   return candidates.map(stripTrailingCommas);
 }
 
@@ -252,7 +286,13 @@ function parseJson(raw: string): UnknownRecord | null {
       const parsed = unwrapObject(JSON.parse(candidate));
       if (parsed) return parsed;
     } catch {
-      // Try another candidate. A response may contain a short explanation around the JSON.
+      try {
+        const sanitizedCandidate = candidate.replace(/(:\s*"[\s\S]*?")/g, (m) => m.replace(/\n/g, "\\n"));
+        const parsed = unwrapObject(JSON.parse(sanitizedCandidate));
+        if (parsed) return parsed;
+      } catch {
+        // Try another candidate.
+      }
     }
   }
   return null;
@@ -291,6 +331,259 @@ function compactIssues(issues: EnrichmentParseIssue[]) {
   ];
 }
 
+function parsePersonBullet(itemText: string): UnknownRecord {
+  const obj: UnknownRecord = {};
+  if (itemText.includes("|")) {
+    const parts = itemText.split("|").map((p) => p.trim());
+    for (const part of parts) {
+      const kv = part.match(/^([^:：]+)[:：]\s*(.*)$/);
+      if (kv) {
+        const k = keySignature(kv[1].trim());
+        const v = kv[2].trim();
+        if (k.includes("اسم") || k.includes("fullname") || k.includes("name")) obj.fullName = v;
+        else if (k.includes("مسمى") || k.includes("منصب") || k.includes("وظي") || k.includes("title")) obj.jobTitle = v;
+        else if (k.includes("مؤسس") || k.includes("founder")) obj.isFounder = ["نعم", "true", "1", "yes"].includes(v.toLowerCase());
+        else if (k.includes("linkedin") || k.includes("لينك")) obj.linkedinUrl = v;
+      }
+    }
+  } else {
+    const kv = itemText.match(/^([^:：]+)[:：]\s*(.*)$/);
+    if (kv) {
+      obj.fullName = kv[1].trim();
+      obj.jobTitle = kv[2].trim();
+    } else {
+      obj.fullName = itemText.trim();
+    }
+  }
+  return obj;
+}
+
+function parseInvestorBullet(itemText: string): UnknownRecord {
+  const obj: UnknownRecord = {};
+  if (itemText.includes("|")) {
+    const parts = itemText.split("|").map((p) => p.trim());
+    for (const part of parts) {
+      const kv = part.match(/^([^:：]+)[:：]\s*(.*)$/);
+      if (kv) {
+        const k = keySignature(kv[1].trim());
+        const v = kv[2].trim();
+        if (k.includes("مستثمر") || k.includes("اسم") || k.includes("name")) obj.name = v;
+        else if (k.includes("مرحلة") || k.includes("stage")) obj.stage = v;
+        else if (k.includes("موقع") || k.includes("رابط") || k.includes("url") || k.includes("website")) obj.websiteUrl = v;
+      }
+    }
+  } else {
+    const kv = itemText.match(/^([^:：]+)[:：]\s*(.*)$/);
+    if (kv) {
+      obj.name = kv[1].trim();
+      if (/^https?:\/\//i.test(kv[2].trim())) obj.websiteUrl = kv[2].trim();
+      else obj.stage = kv[2].trim();
+    } else {
+      obj.name = itemText.trim();
+    }
+  }
+  return obj;
+}
+
+function parseProductBullet(itemText: string): UnknownRecord {
+  const obj: UnknownRecord = {};
+  if (itemText.includes("|")) {
+    const parts = itemText.split("|").map((p) => p.trim());
+    for (const part of parts) {
+      const kv = part.match(/^([^:：]+)[:：]\s*(.*)$/);
+      if (kv) {
+        const k = keySignature(kv[1].trim());
+        const v = kv[2].trim();
+        if (k.includes("منتج") || k.includes("اسم") || k.includes("name")) obj.name = v;
+        else if (k.includes("وصف") || k.includes("desc")) obj.description = v;
+        else if (k.includes("رابط") || k.includes("موقع") || k.includes("url")) obj.url = v;
+      }
+    }
+  } else {
+    const kv = itemText.match(/^([^:：]+)[:：]\s*(.*)$/);
+    if (kv) {
+      obj.name = kv[1].trim();
+      if (/^https?:\/\//i.test(kv[2].trim())) obj.url = kv[2].trim();
+      else obj.description = kv[2].trim();
+    } else {
+      obj.name = itemText.trim();
+    }
+  }
+  return obj;
+}
+
+function parseCompetitorBullet(itemText: string): UnknownRecord {
+  const obj: UnknownRecord = {};
+  if (itemText.includes("|")) {
+    const parts = itemText.split("|").map((p) => p.trim());
+    for (const part of parts) {
+      const kv = part.match(/^([^:：]+)[:：]\s*(.*)$/);
+      if (kv) {
+        const k = keySignature(kv[1].trim());
+        const v = kv[2].trim();
+        if (k.includes("منافس") || k.includes("اسم") || k.includes("name")) obj.name = v;
+        else if (k.includes("موقع") || k.includes("رابط") || k.includes("url") || k.includes("website")) obj.websiteUrl = v;
+        else if (k.includes("علاقة") || k.includes("نوع") || k.includes("rel")) obj.relationship = v;
+      }
+    }
+  } else {
+    const kv = itemText.match(/^([^:：]+)[:：]\s*(.*)$/);
+    if (kv) {
+      obj.name = kv[1].trim();
+      if (/^https?:\/\//i.test(kv[2].trim())) obj.websiteUrl = kv[2].trim();
+      else obj.relationship = kv[2].trim();
+    } else {
+      obj.name = itemText.trim();
+    }
+  }
+  return obj;
+}
+
+function parseRelatedPartyBullet(itemText: string): UnknownRecord {
+  const obj: UnknownRecord = {};
+  if (itemText.includes("|")) {
+    const parts = itemText.split("|").map((p) => p.trim());
+    for (const part of parts) {
+      const kv = part.match(/^([^:：]+)[:：]\s*(.*)$/);
+      if (kv) {
+        const k = keySignature(kv[1].trim());
+        const v = kv[2].trim();
+        if (k.includes("اسم") || k.includes("party") || k.includes("name")) obj.name = v;
+        else if (k.includes("نوع") || k.includes("type")) obj.partyType = v;
+        else if (k.includes("علاقة") || k.includes("rel")) obj.relationship = v;
+        else if (k.includes("موقع") || k.includes("رابط") || k.includes("url")) obj.websiteUrl = v;
+      }
+    }
+  } else {
+    const kv = itemText.match(/^([^:：]+)[:：]\s*(.*)$/);
+    if (kv) {
+      obj.name = kv[1].trim();
+      obj.relationship = kv[2].trim();
+    } else {
+      obj.name = itemText.trim();
+    }
+  }
+  return obj;
+}
+
+function parseSourceBullet(itemText: string): UnknownRecord {
+  const obj: UnknownRecord = {};
+  if (itemText.includes("|")) {
+    const parts = itemText.split("|").map((p) => p.trim());
+    for (const part of parts) {
+      const kv = part.match(/^([^:：]+)[:：]\s*(.*)$/);
+      if (kv) {
+        const k = keySignature(kv[1].trim());
+        const v = kv[2].trim();
+        if (k.includes("عنوان") || k.includes("مصدر") || k.includes("title")) obj.title = v;
+        else if (k.includes("رابط") || k.includes("موقع") || k.includes("url")) obj.url = v;
+        else if (k.includes("ناشر") || k.includes("جهة") || k.includes("pub")) obj.publisher = v;
+        else if (k.includes("نوع") || k.includes("type")) obj.sourceType = v;
+        else if (k.includes("دليل") || k.includes("evidence")) obj.evidence = v;
+      } else if (/^https?:\/\//i.test(part)) {
+        obj.url = part;
+      } else if (!obj.title) {
+        obj.title = part;
+      }
+    }
+  } else {
+    const kv = itemText.match(/^([^:：]+)[:：]\s*(.*)$/);
+    if (kv) {
+      obj.title = kv[1].trim();
+      obj.url = kv[2].trim();
+    } else if (/^https?:\/\//i.test(itemText)) {
+      obj.url = itemText.trim();
+      obj.title = "مصدر خارجي";
+    } else {
+      obj.title = itemText.trim();
+    }
+  }
+  return obj;
+}
+
+function parseKeyValueText(raw: string): UnknownRecord | null {
+  const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length === 0) return null;
+
+  const result: UnknownRecord = {};
+  let currentListKey: string | null = null;
+  let currentSwotCategory: "strengths" | "weaknesses" | "opportunities" | "threats" | null = null;
+  const unknownMarkers = ["غير معروف", "غير محدد", "غير متوفر", "لا يوجد", "غ/م", "null", "none", "unknown", "-"];
+
+  for (const line of lines) {
+    // Check SWOT headers
+    if (/^(نقاط\s*القوة|القوة)[:：]?$/i.test(line)) { currentSwotCategory = "strengths"; currentListKey = null; continue; }
+    if (/^(نقاط\s*الضعف|الضعف)[:：]?$/i.test(line)) { currentSwotCategory = "weaknesses"; currentListKey = null; continue; }
+    if (/^(الفرص)[:：]?$/i.test(line)) { currentSwotCategory = "opportunities"; currentListKey = null; continue; }
+    if (/^(التهديدات|المخاطر\s*التنافسية)[:：]?$/i.test(line)) { currentSwotCategory = "threats"; currentListKey = null; continue; }
+
+    const bulletMatch = line.match(/^[-*•]\s*(.*)$/);
+    if (bulletMatch) {
+      const itemText = bulletMatch[1].trim();
+      if (!itemText || unknownMarkers.includes(itemText.toLowerCase())) continue;
+
+      if (currentSwotCategory) {
+        if (!isRecord(result.swot)) result.swot = { strengths: [], weaknesses: [], opportunities: [], threats: [] };
+        const swotObj = result.swot as Record<string, string[]>;
+        if (Array.isArray(swotObj[currentSwotCategory])) swotObj[currentSwotCategory].push(itemText);
+        continue;
+      }
+
+      if (currentListKey) {
+        if (!Array.isArray(result[currentListKey])) {
+          result[currentListKey] = [];
+        }
+
+        if (currentListKey === "people") {
+          (result.people as UnknownRecord[]).push(parsePersonBullet(itemText));
+        } else if (currentListKey === "investors") {
+          (result.investors as UnknownRecord[]).push(parseInvestorBullet(itemText));
+        } else if (currentListKey === "products") {
+          (result.products as UnknownRecord[]).push(parseProductBullet(itemText));
+        } else if (currentListKey === "competitors") {
+          (result.competitors as UnknownRecord[]).push(parseCompetitorBullet(itemText));
+        } else if (currentListKey === "relatedParties") {
+          (result.relatedParties as UnknownRecord[]).push(parseRelatedPartyBullet(itemText));
+        } else if (currentListKey === "sources") {
+          (result.sources as UnknownRecord[]).push(parseSourceBullet(itemText));
+        } else {
+          (result[currentListKey] as unknown[]).push(itemText);
+        }
+        continue;
+      }
+    }
+
+    const kvMatch = line.match(/^([^:：]+)[:：]\s*(.*)$/);
+    if (kvMatch) {
+      const rawKey = kvMatch[1].trim();
+      const rawVal = kvMatch[2].trim();
+      const mappedKey = keyAliases[keySignature(rawKey)] ?? keyAliases[rawKey] ?? rawKey;
+
+      if (!mappedKey) continue;
+
+      currentListKey = mappedKey;
+      currentSwotCategory = null;
+
+      if (!rawVal || unknownMarkers.includes(rawVal.toLowerCase())) {
+        if (!(mappedKey in result)) {
+          result[mappedKey] = null;
+        }
+        continue;
+      }
+
+      const listFields = new Set(["markets", "currentMarkets", "techStack", "marketingChannels", "audienceSegments", "dataGaps", "risks"]);
+      if (listFields.has(mappedKey)) {
+        const items = rawVal.split(/[,،؛]+/).map((s) => s.trim()).filter((s) => s && !unknownMarkers.includes(s.toLowerCase()));
+        result[mappedKey] = items;
+      } else {
+        result[mappedKey] = rawVal;
+      }
+    }
+  }
+
+  return Object.keys(result).length > 0 ? result : null;
+}
+
 export function parseEnrichmentBundle(parts: Partial<Record<EnrichmentPartKey, string>>, fallback: Partial<LlmCompany> = {}) {
   const issues: EnrichmentParseIssue[] = [];
   const parsed: Partial<LlmEnrichmentBundle> = {};
@@ -303,7 +596,7 @@ export function parseEnrichmentBundle(parts: Partial<Record<EnrichmentPartKey, s
     }
 
     const parsedJson = parseJson(parts[key] as string);
-    const raw = parsedJson ? extractPart(parsedJson, key) : null;
+    const raw = parsedJson ? extractPart(parsedJson, key) : parseKeyValueText(parts[key] as string);
     if (!raw) {
       issues.push({ severity: "warning", field: key, message: "تعذر قراءة هذه المرحلة، لذلك تم تجاهلها مع الاحتفاظ ببقية البيانات." });
       continue;
@@ -324,12 +617,30 @@ export function parseEnrichmentBundle(parts: Partial<Record<EnrichmentPartKey, s
       continue;
     }
 
-    // Field-level problems should not discard all other usable fields from a stage.
     const relaxedResult = schema.partial().safeParse(candidate);
     if (relaxedResult.success) {
       parsed[key] = relaxedResult.data as never;
       issues.push(...result.error.issues.map((issue) => issueMessage(issue, "warning")));
     } else {
+      // Fallback field-by-field sanitization so one invalid field never drops the whole stage
+      const sanitized: UnknownRecord = {
+        instructionId: instructionIds[key],
+        companyKey: inferredCompanyKey,
+      };
+      const candRecord = candidate as UnknownRecord;
+      const shape = schema.shape as Record<string, z.ZodTypeAny>;
+      for (const [fieldKey, fieldSchema] of Object.entries(shape)) {
+        if (fieldKey in candRecord) {
+          const fieldResult = fieldSchema.safeParse(candRecord[fieldKey]);
+          if (fieldResult.success) {
+            sanitized[fieldKey] = fieldResult.data;
+          }
+        }
+      }
+      const finalTry = schema.partial().safeParse(sanitized);
+      if (finalTry.success) {
+        parsed[key] = finalTry.data as never;
+      }
       issues.push(...result.error.issues.map((issue) => issueMessage(issue, "warning")));
     }
   }

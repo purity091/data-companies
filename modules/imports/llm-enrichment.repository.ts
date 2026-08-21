@@ -26,7 +26,7 @@ export async function saveLlmEnrichment(companyId: bigint, bundle: LlmEnrichment
   const evidence = bundle.evidence;
   const enrichment: Record<string, unknown> = { companyId: companyId.toString(), promptVersion: "llm-4-step-v1", updatedAt: new Date().toISOString() };
   if (identity) {
-    assignDefined(enrichment, identity, ["companyType", "headquarters", "employeeCount"]);
+    assignDefined(enrichment, identity, ["vision", "companyType", "headquarters", "employeeCount", "businessModel", "strategicDomain", "reachScope"]);
     if (identity.techStack !== undefined) enrichment.techStack = lines(identity.techStack);
     if (identity.marketingChannels !== undefined) enrichment.marketingChannels = lines(identity.marketingChannels);
   }

@@ -12,7 +12,8 @@
     "db:validate": "prisma validate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "import:trustmrr:worker": "node scripts/trustmrr-worker.mjs"
+    "import:trustmrr:worker": "node scripts/trustmrr-worker.mjs",
+    "import:json": "node scripts/import-company-json.js"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

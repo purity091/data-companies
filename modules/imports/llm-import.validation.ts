@@ -17,7 +17,16 @@ export const llmInvestorSchema = z.object({
 
 export const llmSourceSchema = z.object({
   title: z.string().trim().max(255).nullable().optional(),
-  url: z.string().trim().url().max(2048),
+  url: z.preprocess(
+    (value) => {
+      if (typeof value === "string" && value.trim()) {
+        const raw = value.trim();
+        return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+      }
+      return value;
+    },
+    z.string().trim().max(2048),
+  ),
 });
 
 export const llmCompanySchema = z.object({
@@ -40,7 +49,7 @@ export const llmPreviewRequestSchema = z.object({
 
 export const llmCommitRequestSchema = z.object({
   company: llmCompanySchema,
-  companyId: z.string().regex(/^\d+$/).optional(),
+  companyId: z.string().trim().min(1).optional(),
   enrichment: llmEnrichmentBundleSchema.optional(),
 });
 

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type Enrichment = {
+  vision: string | null;
   companyType: string | null;
   headquarters: string | null;
   employeeCount: number | null;
@@ -61,6 +62,7 @@ export function CompanyLlmEnrichmentCard({ enrichment, products = [], competitor
           </TabsList>
 
           <TabsContent value="business" className="mt-5 space-y-4">
+            <TextBlock label="الرؤية واللمحة التعريفية" value={enrichment.vision} />
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <Field label="نوع الشركة" value={enrichment.companyType} />
               <Field label="المقر" value={enrichment.headquarters} />
